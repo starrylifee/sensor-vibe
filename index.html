@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sensor Vibe — EZMaker</title>
+<style>
+  :root {
+    --bg: #07071a;
+    --card: #0e0e28;
+    --border: #1e1e48;
+    --text: #e2e8f0;
+    --muted: #64748b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── 별 배경 ── */
+  #starfield {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  }
+
+  /* ── 헤더 ── */
+  header {
+    position: relative; z-index: 1;
+    text-align: center;
+    padding: 52px 20px 32px;
+  }
+  .brand {
+    font-size: 11px; letter-spacing: 5px; color: #00d4ff;
+    text-transform: uppercase; margin-bottom: 14px; opacity: .7;
+  }
+  header h1 {
+    font-size: clamp(2rem, 6vw, 3.6rem);
+    font-weight: 900; line-height: 1.1;
+    background: linear-gradient(135deg, #00d4ff 0%, #a855f7 60%, #ff6b35 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+  }
+  header p { color: var(--muted); font-size: .95rem; }
+
+  /* ── 브라우저 경고 ── */
+  #browserWarn {
+    display: none;
+    margin: 0 auto 24px; max-width: 520px;
+    background: rgba(255,107,53,.1); border: 1px solid rgba(255,107,53,.35);
+    border-radius: 10px; padding: 12px 18px;
+    font-size: .82rem; color: #ff6b35; text-align: center;
+  }
+  #browserWarn.show { display: block; }
+
+  /* ── 게임 그리드 ── */
+  .grid {
+    position: relative; z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 20px 60px;
+  }
+
+  /* ── 게임 카드 ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    transition: transform .2s, box-shadow .2s, border-color .2s;
+    position: relative;
+  }
+  .card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 16px 48px rgba(0,0,0,.5);
+    border-color: var(--c);
+  }
+
+  /* 상단 컬러 띠 */
+  .card-top {
+    height: 4px;
+    background: var(--c);
+    box-shadow: 0 0 16px var(--c);
+  }
+
+  .card-body { padding: 22px 22px 18px; flex: 1; }
+  .card-icon { font-size: 2.4rem; margin-bottom: 12px; display: block; }
+  .card-title {
+    font-size: 1.15rem; font-weight: 800; color: var(--c);
+    margin-bottom: 8px;
+  }
+  .card-desc {
+    font-size: .82rem; color: var(--muted);
+    line-height: 1.6; margin-bottom: 14px;
+  }
+
+  /* 센서 뱃지 */
+  .sensor-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 12px;
+    font-size: .72rem; color: var(--muted);
+  }
+  .sensor-badge::before {
+    content: '';
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--c);
+    box-shadow: 0 0 6px var(--c);
+    flex-shrink: 0;
+  }
+
+  /* 하단 버튼 */
+  .card-footer {
+    padding: 14px 22px;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-footer .hi {
+    font-size: .72rem; color: var(--muted);
+  }
+  .card-footer .hi span {
+    font-family: monospace; color: var(--c); font-weight: 700;
+  }
+  .play-btn {
+    background: var(--c);
+    color: #000;
+    border: none; border-radius: 8px;
+    padding: 7px 18px;
+    font-size: .8rem; font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 0 12px var(--c);
+    transition: opacity .15s;
+  }
+  .play-btn:hover { opacity: .85; }
+
+  /* ── 하단 안내 ── */
+  footer {
+    position: relative; z-index: 1;
+    text-align: center;
+    padding: 0 20px 40px;
+    color: var(--muted);
+    font-size: .78rem;
+    border-top: 1px solid var(--border);
+    max-width: 1080px;
+    margin: 0 auto;
+    padding-top: 20px;
+  }
+  footer .tip {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,.03);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 16px;
+    font-size: .8rem; margin-bottom: 12px;
+  }
+
+  /* ── 조작 안내 모달 ── */
+  #helpModal {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,.8);
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  #helpModal.show { display: flex; }
+  .modal-box {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px; max-width: 480px; width: 100%;
+  }
+  .modal-box h2 { color: #00d4ff; margin-bottom: 16px; font-size: 1.1rem; }
+  .help-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: .83rem;
+  }
+  .help-row:last-of-type { border-bottom: none; }
+  .help-icon { font-size: 1.4rem; flex-shrink: 0; width: 32px; text-align: center; }
+  .help-row p { color: var(--muted); line-height: 1.5; }
+  .help-row strong { color: var(--text); }
+  .close-btn {
+    width: 100%; margin-top: 18px;
+    background: none; border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px; color: var(--text);
+    font-size: .88rem; cursor: pointer;
+  }
+  .close-btn:hover { border-color: #00d4ff; color: #00d4ff; }
+
+  /* ── 탭 네비게이션 ── */
+  .tab-nav {
+    position: relative; z-index: 1;
+    display: flex;
+    gap: 4px;
+    max-width: 1080px;
+    margin: 0 auto 0;
+    padding: 0 20px;
+  }
+  .tab-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    color: var(--muted);
+    border-radius: 10px 10px 0 0;
+    padding: 10px 24px;
+    font-size: .88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    letter-spacing: .3px;
+  }
+  .tab-btn:hover { color: var(--text); background: rgba(255,255,255,.04); }
+  .tab-btn.active {
+    background: var(--card);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .tab-line {
+    position: relative; z-index: 1;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── 탭 패널 ── */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── 학생 작품 플레이스홀더 ── */
+  .student-placeholder {
+    max-width: 1080px;
+    margin: 60px auto;
+    padding: 0 20px;
+    text-align: center;
+  }
+  .student-placeholder .ph-box {
+    display: inline-block;
+    background: var(--card);
+    border: 2px dashed var(--border);
+    border-radius: 20px;
+    padding: 60px 48px;
+    max-width: 520px;
+    width: 100%;
+  }
+  .student-placeholder .ph-icon { font-size: 3rem; margin-bottom: 16px; opacity: .6; }
+  .student-placeholder h3 {
+    font-size: 1.2rem; font-weight: 800;
+    background: linear-gradient(135deg, #a855f7, #00d4ff);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 10px;
+  }
+  .student-placeholder p { color: var(--muted); font-size: .85rem; line-height: 1.7; }
+  .student-placeholder .badge {
+    display: inline-block;
+    margin-top: 20px;
+    background: rgba(168,85,247,.12);
+    border: 1px solid rgba(168,85,247,.35);
+    border-radius: 20px;
+    padding: 5px 16px;
+    font-size: .75rem;
+    color: #a855f7;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+
+<header>
+  <div class="brand">EZMaker Online · Sensor Vibe</div>
+  <h1>센서 게임 허브</h1>
+  <p>밝기 · 소리 · 초음파 센서를 연결하고 게임을 즐겨보세요 · Chrome / Edge 전용</p>
+</header>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" data-tab="sample">🎮 샘플 게임</button>
+  <button class="tab-btn" data-tab="student">🎓 학생 작품</button>
+</nav>
+<div class="tab-line"></div>
+
+<div id="browserWarn">
+  ⚠️ <strong>Web Serial API</strong>는 Chrome 또는 Edge에서만 지원됩니다. 현재 브라우저에서는 센서 연결이 불가할 수 있습니다.
+</div>
+
+<!-- ══ 샘플 게임 탭 ══ -->
+<div class="tab-panel active" id="tab-sample">
+<div class="grid">
+
+  <a href="airplane.html" class="card" style="--c:#00d4ff">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">✈️</span>
+      <div class="card-title">비행기 슈팅</div>
+      <div class="card-desc">밝기 센서를 손으로 가리면 미사일 발사! 에너지를 관리하며 아이템을 먹고 레벨업하세요.</div>
+      <span class="sensor-badge">밝기 센서 (아날로그)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-airplane">—</span></div>
+      <button class="play-btn">플레이 →</button>
+    </div>
+  </a>
+
+  <a href="sound-game.html" class="card" style="--c:#ff6b35">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">💡</span>
+      <div class="card-title">밝기 점프</div>
+      <div class="card-desc">밝기 센서를 손으로 가리는 순간 캐릭터가 점프합니다! 장애물을 피해 달리세요.</div>
+      <span class="sensor-badge">밝기 센서 (아날로그)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-sound">—</span></div>
+      <button class="play-btn" style="background:#ff6b35;box-shadow:0 0 12px #ff6b35">플레이 →</button>
+    </div>
+  </a>
+
+  <a href="ultrasonic-game.html" class="card" style="--c:#a855f7">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">📡</span>
+      <div class="card-title">초음파 패들</div>
+      <div class="card-desc">손을 센서 위에서 위아래로 움직여 패들을 조종하고 공을 받아치세요.</div>
+      <span class="sensor-badge">초음파 센서 (거리)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-ultra">—</span></div>
+      <button class="play-btn" style="background:#a855f7;box-shadow:0 0 12px #a855f7">플레이 →</button>
+    </div>
+  </a>
+
+</div>
+
+<footer>
+  <div class="tip">💡 추천 순서: 밝기 점프 → 초음파 → 비행기</div>
+  <br>
+  <button onclick="document.getElementById('helpModal').classList.add('show')"
+    style="background:none;border:1px solid var(--border);color:var(--muted);
+    border-radius:8px;padding:7px 16px;font-size:.78rem;cursor:pointer;margin-bottom:12px">
+    📖 게임 방법 보기
+  </button>
+  <br>
+  EZMaker Online (EZ-ON) &nbsp;·&nbsp; Web Serial API &nbsp;·&nbsp; Chrome / Edge 권장
+</footer>
+
+</div><!-- /tab-sample -->
+
+<!-- ══ 학생 작품 탭 ══ -->
+<div class="tab-panel" id="tab-student">
+
+  <div class="student-placeholder">
+    <div class="ph-box">
+      <div class="ph-icon">🎓</div>
+      <h3>학생 작품 섹션</h3>
+      <p>이곳에 학생들이 만든 센서 게임이 추가될 예정입니다.<br>내일 작품을 업로드하고 카드를 채워주세요!</p>
+      <div class="badge">준비 중 · Coming Soon</div>
+    </div>
+  </div>
+
+  <!-- 학생 작품 카드 그리드 (내일 여기에 추가) -->
+  <div class="grid" id="student-grid" style="display:none">
+    <!-- 예시: 아래 카드 복사해서 학생 작품 추가
+    <a href="학생파일.html" class="card" style="--c:#a855f7">
+      <div class="card-top"></div>
+      <div class="card-body">
+        <span class="card-icon">🌟</span>
+        <div class="card-title">작품 제목</div>
+        <div class="card-desc">작품 설명</div>
+        <span class="sensor-badge">사용 센서</span>
+      </div>
+      <div class="card-footer">
+        <div class="hi">학번 <span>홍길동</span></div>
+        <button class="play-btn" style="background:#a855f7;box-shadow:0 0 12px #a855f7">플레이 →</button>
+      </div>
+    </a>
+    -->
+  </div>
+
+</div><!-- /tab-student -->
+
+<!-- 도움말 모달 -->
+<div id="helpModal">
+  <div class="modal-box">
+    <h2>📖 게임 방법</h2>
+    <div class="help-row">
+      <span class="help-icon">✈️</span>
+      <p><strong>비행기 슈팅</strong><br>센서를 손으로 가리면 미사일 발사. 에너지가 닳으면 손 떼서 충전. 아이템 먹으면 미사일 레벨업, 피격 시 레벨 다운.</p>
+    </div>
+    <div class="help-row">
+      <span class="help-icon">💡</span>
+      <p><strong>밝기 점프</strong><br>밝기 센서를 손으로 가리는 순간 점프. 가렸다 떼는 타이밍으로 장애물을 넘으세요.</p>
+    </div>
+    <div class="help-row">
+      <span class="help-icon">📡</span>
+      <p><strong>초음파 패들</strong><br>손을 센서 위에서 가까이/멀리 움직여 패들 조종. 공이 오른쪽 벽에 닿으면 게임 오버.</p>
+    </div>
+    <button class="close-btn" onclick="document.getElementById('helpModal').classList.remove('show')">닫기</button>
+  </div>
+</div>
+
+<script>
+// ── 별 배경 ──────────────────────────────────
+const cv = document.getElementById('starfield');
+const cx = cv.getContext('2d');
+let stars = [];
+
+function initStars() {
+  cv.width = window.innerWidth;
+  cv.height = window.innerHeight;
+  stars = Array.from({ length: 120 }, () => ({
+    x: Math.random() * cv.width,
+    y: Math.random() * cv.height,
+    r: Math.random() * 1.4 + 0.3,
+    a: Math.random() * .8 + .2,
+    speed: Math.random() * .015 + .005,
+    phase: Math.random() * Math.PI * 2,
+  }));
+}
+initStars();
+window.addEventListener('resize', initStars);
+
+let t = 0;
+function drawStars() {
+  requestAnimationFrame(drawStars);
+  cx.clearRect(0, 0, cv.width, cv.height);
+  t += 0.01;
+  stars.forEach(s => {
+    const alpha = s.a * (.6 + .4 * Math.sin(t * s.speed * 60 + s.phase));
+    cx.globalAlpha = alpha;
+    cx.fillStyle = '#fff';
+    cx.beginPath();
+    cx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    cx.fill();
+  });
+  cx.globalAlpha = 1;
+}
+drawStars();
+
+// ── 최고 점수 로드 ──────────────────────────
+function fmt(v) { return v ? Number(v).toLocaleString() : '—'; }
+document.getElementById('hi-airplane').textContent =
+  fmt((JSON.parse(localStorage.getItem('airplane_leaderboard') || '[]')[0] || {}).score);
+document.getElementById('hi-sound').textContent =
+  fmt(localStorage.getItem('brightjump_hi'));
+document.getElementById('hi-ultra').textContent =
+  fmt(localStorage.getItem('ultrabreak_hi'));
+
+// ── 브라우저 체크 ────────────────────────────
+if (!('serial' in navigator)) {
+  document.getElementById('browserWarn').classList.add('show');
+}
+
+// ── 모달 바깥 클릭 닫기 ─────────────────────
+document.getElementById('helpModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget)
+    e.currentTarget.classList.remove('show');
+});
+
+// ── 탭 전환 ─────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + target).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

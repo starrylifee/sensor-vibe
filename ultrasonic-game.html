@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>초음파 브레이크아웃 — EZMaker</title>
+<style>
+  :root{--bg:#050510;--panel:#0d0d20;--border:#1a1a3a;--accent:#a855f7;--success:#00ff88;--muted:#64748b;--text:#e2e8f0;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+    height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+  #topbar{width:100%;max-width:520px;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);gap:8px;flex-shrink:0;}
+  #topbar a{color:var(--muted);text-decoration:none;font-size:.8rem;}
+  #topbar a:hover{color:var(--accent);}
+  .stat{text-align:center;}
+  .stat .label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat .value{font-size:1.05rem;font-weight:700;color:var(--accent);font-family:monospace;}
+  #gameWrap{position:relative;flex:1;width:100%;max-width:520px;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+  #sensorBar{width:100%;max-width:520px;background:var(--panel);border-top:1px solid var(--border);
+    padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  #sensorBar .label{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  #sensorMeter{flex:1;height:8px;background:#1a1a3a;border-radius:4px;overflow:hidden;}
+  #sensorFill{height:100%;background:var(--accent);border-radius:4px;transition:width .05s;width:0%;}
+  #sensorVal{font-size:.75rem;font-family:monospace;color:var(--accent);min-width:50px;text-align:right;}
+  button.ctrl{background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;
+    padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;}
+  button.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+  button.ctrl.connected{border-color:var(--success);color:var(--success);}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.88);z-index:10;flex-direction:column;gap:14px;padding:28px;text-align:center;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-size:1.4rem;font-weight:800;color:var(--accent);}
+  .overlay .sub{color:var(--muted);font-size:.82rem;line-height:1.8;}
+  .btn{background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 28px;
+    font-size:.95rem;font-weight:700;cursor:pointer;min-width:140px;}
+  #settPanel{position:absolute;top:0;right:0;bottom:0;width:min(300px,100%);background:var(--panel);
+    border-left:1px solid var(--border);z-index:20;padding:20px;overflow-y:auto;
+    transform:translateX(100%);transition:transform .3s;}
+  #settPanel.open{transform:translateX(0);}
+  #settPanel h3{color:var(--accent);margin-bottom:18px;}
+  .srow{margin-bottom:16px;}
+  .srow label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;}
+  .srow input[type=range]{width:100%;accent-color:var(--accent);}
+  .srow select{width:100%;background:#0a0a18;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;}
+  .testbox{background:#0a0a18;border:1px solid var(--border);border-radius:8px;padding:14px;
+    margin-bottom:16px;text-align:center;}
+  .testbox .bigv{font-size:2rem;font-weight:900;font-family:monospace;color:var(--accent);}
+  .testbox .hint{font-size:.72rem;color:var(--muted);margin-top:4px;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div style="display:flex;gap:14px">
+    <div class="stat"><div class="label">점수</div><div class="value" id="scoreDisp">0</div></div>
+    <div class="stat"><div class="label">최고</div><div class="value" id="hiDisp">0</div></div>
+    <div class="stat"><div class="label">공</div><div class="value" id="ballDisp">1</div></div>
+    <div class="stat"><div class="label">목숨</div><div class="value" id="livesDisp">❤❤❤</div></div>
+  </div>
+  <button class="ctrl" id="settBtn">⚙️</button>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+
+  <div class="overlay" id="startPanel">
+    <h2>📡 초음파 브레이크아웃</h2>
+    <div class="sub">
+      기본은 초음파 센서 조작입니다.<br>
+      설정에서 마우스 또는 키보드로 바꿀 수 있습니다.<br><br>
+      🟠 주황 벽돌 → 공 분열<br>
+      🟡 금색 벽돌 → 파워업 드롭<br>
+      🔵 파란 벽돌 → 2번 타격 필요
+    </div>
+    <button class="btn" id="startBtn">시작</button>
+  </div>
+
+  <div class="overlay hidden" id="clearPanel">
+    <h2>🎉 스테이지 클리어!</h2>
+    <div style="font-size:2rem;color:var(--accent);font-family:monospace" id="clearScore"></div>
+    <button class="btn" id="nextBtn">다음 스테이지 →</button>
+  </div>
+
+  <div class="overlay hidden" id="overPanel">
+    <h2>💥 게임 오버</h2>
+    <div style="font-size:2rem;color:var(--accent);font-family:monospace" id="finalDisp"></div>
+    <button class="btn" id="restartBtn">다시 시작</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem;margin-top:4px">← 목록으로</a>
+  </div>
+</div>
+
+<div id="sensorBar">
+  <span class="label">거리</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">— cm</span>
+  <button class="ctrl" id="connectBtn">🔌 연결</button>
+</div>
+
+<div id="settPanel">
+  <h3>⚙️ 센서 · 입력 설정</h3>
+  <div class="testbox">
+    <div class="bigv" id="tBigV">— cm</div>
+    <div class="hint">초음파 센서 거리 (0~400cm)</div>
+    <div style="height:10px;background:#1a1a3a;border-radius:5px;overflow:hidden;margin-top:8px">
+      <div id="tBar" style="height:100%;background:var(--accent);border-radius:5px;transition:width .05s;width:0%"></div>
+    </div>
+  </div>
+  <div class="srow">
+    <label>입력 모드: <strong id="inputModeLabel">센서</strong></label>
+    <select id="inputModeSelect">
+      <option value="sensor">센서만 사용</option>
+      <option value="mouse">마우스 / 터치</option>
+      <option value="keyboard">키보드</option>
+    </select>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:6px">기본 조작은 센서이며, 설정에서만 다른 입력으로 전환됩니다.</div>
+  </div>
+  <div class="srow">
+    <label>최대 감지 거리: <strong id="maxDistLabel">40</strong> cm</label>
+    <input type="range" id="maxDistSlider" min="10" max="150" value="40">
+    <div style="font-size:.72rem;color:var(--muted);margin-top:4px">이 거리가 패들의 끝 위치가 됩니다.</div>
+  </div>
+  <div class="srow">
+    <label>게임 속도: <strong id="speedLabel">보통</strong></label>
+    <input type="range" id="speedSlider" min="1" max="3" value="2" step="1">
+  </div>
+  <button class="btn" id="closeSett" style="width:100%">닫기</button>
+</div>
+
+<script src="js/serial.js"></script>
+<script>
+const canvas = document.getElementById('gc');
+const ctx    = canvas.getContext('2d');
+const wrap   = document.getElementById('gameWrap');
+function resize() { canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight; }
+resize(); window.addEventListener('resize', resize);
+
+const serial = new SerialManager();
+let sensorVal = 0;
+const cfg = { maxDist: 40, speedLevel: 2, inputMode: 'sensor' };
+const INPUT_MODE_LABELS = {
+  sensor: '센서',
+  mouse: '마우스',
+  keyboard: '키보드',
+};
+
+const LB_KEY = 'ultrabreak_hi';
+function getHi() { return +localStorage.getItem(LB_KEY) || 0; }
+function setHi(s) { if (s > getHi()) localStorage.setItem(LB_KEY, s); }
+
+// ── State ──────────────────────────────────────
+let state = 'menu';
+let score = 0, lives = 3, stage = 1;
+let balls = [], bricks = [], powerups = [], particles = [];
+let slowTimer = 0;
+
+// ── Paddle (horizontal, bottom) ────────────────
+const paddle = { x: 0, w: 90, h: 12 };
+let mousePaddleX = 0.5;
+const keys = {};
+
+function syncInputModeUI() {
+  document.getElementById('inputModeSelect').value = cfg.inputMode;
+  document.getElementById('inputModeLabel').textContent = INPUT_MODE_LABELS[cfg.inputMode];
+}
+
+function setInputMode(mode) {
+  cfg.inputMode = INPUT_MODE_LABELS[mode] ? mode : 'sensor';
+  Object.keys(keys).forEach(key => { keys[key] = false; });
+  syncInputModeUI();
+}
+
+// ── Constants ──────────────────────────────────
+const PADDLE_Y_OFFSET = 18;   // from bottom
+const BALL_R = 7;
+const BRICK_ROWS = 5;
+const BRICK_COLS = 8;
+const BRICK_AREA_H_RATIO = 0.45; // top 45% for bricks
+
+const BRICK_TYPES = {
+  normal: { color: '#6644cc', hp: 1, pts: 10 },
+  strong: { color: '#2266ff', hp: 2, pts: 25 },
+  split:  { color: '#ff7700', hp: 1, pts: 15, special: 'split' },
+  bonus:  { color: '#ffcc00', hp: 1, pts: 50, special: 'powerup' },
+};
+
+// ── Build stage ────────────────────────────────
+function buildStage(s) {
+  const rows = BRICK_ROWS + Math.min(s - 1, 4);
+  const cols = BRICK_COLS;
+  const gap  = 5;
+  const marginX = 10;
+  const marginY = 28;
+  const bw = Math.floor((canvas.width - marginX * 2 - gap * (cols - 1)) / cols);
+  const bh = Math.floor((canvas.height * BRICK_AREA_H_RATIO - gap * (rows - 1)) / rows);
+
+  bricks = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const rand = Math.random();
+      let type;
+      if      (rand < 0.10)            type = 'bonus';
+      else if (rand < 0.22)            type = 'split';
+      else if (rand < 0.38 && s >= 2)  type = 'strong';
+      else                             type = 'normal';
+
+      const t = BRICK_TYPES[type];
+      bricks.push({
+        x: marginX + c * (bw + gap),
+        y: marginY + r * (bh + gap),
+        w: bw, h: bh,
+        hp: t.hp, maxHp: t.hp,
+        color: t.color, pts: t.pts,
+        special: t.special || null,
+        flash: 0,
+      });
+    }
+  }
+}
+
+// ── Spawn helpers ──────────────────────────────
+function spawnBall(x, y, vx, vy) {
+  balls.push({ x, y, vx, vy, r: BALL_R, trail: [] });
+}
+
+function baseSpeed() {
+  return [2.8, 3.8, 5.2][cfg.speedLevel - 1];
+}
+
+function spawnPowerup(x, y) {
+  const types  = ['multiball', 'slowdown', 'paddlegrow', 'extralife'];
+  const colors = { multiball:'#ff4444', slowdown:'#00aaff', paddlegrow:'#00ff88', extralife:'#ffcc00' };
+  const labels = { multiball:'×2',      slowdown:'↓↓',     paddlegrow:'⬌',       extralife:'❤' };
+  const type   = types[Math.floor(Math.random() * types.length)];
+  powerups.push({ x: x - 16, y, w: 32, h: 18, vy: 2, type, color: colors[type], label: labels[type] });
+}
+
+function burst(x, y, color, n = 10) {
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+    const spd = 1.5 + Math.random() * 3;
+    particles.push({ x, y, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd,
+      r: 2 + Math.random()*3, color, alpha: 1, life: 30 + Math.random()*20 });
+  }
+}
+
+function applyPowerup(type) {
+  if (type === 'multiball') {
+    [...balls].forEach(b => {
+      const angle = Math.atan2(b.vy, b.vx) + (Math.random() - 0.5) * 1.2;
+      const spd   = Math.hypot(b.vx, b.vy);
+      spawnBall(b.x, b.y, Math.cos(angle)*spd, Math.sin(angle)*spd);
+    });
+  } else if (type === 'slowdown') {
+    slowTimer = 360;
+  } else if (type === 'paddlegrow') {
+    paddle.w = Math.min(paddle.w + 40, canvas.width * 0.55);
+    setTimeout(() => { paddle.w = Math.max(paddle.w - 40, 70); }, 8000);
+  } else if (type === 'extralife') {
+    lives = Math.min(lives + 1, 5);
+    updateHUD();
+  }
+}
+
+// ── Init ───────────────────────────────────────
+function init(keepScore = false) {
+  if (!keepScore) { score = 0; lives = 3; stage = 1; }
+  balls = []; powerups = []; particles = [];
+  slowTimer = 0;
+  paddle.w  = 90;
+  paddle.x  = canvas.width / 2 - paddle.w / 2;
+  Object.keys(keys).forEach(key => { keys[key] = false; });
+  buildStage(stage);
+  // Launch ball upward with slight angle
+  const spd   = baseSpeed();
+  const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.8;
+  spawnBall(canvas.width / 2, canvas.height * 0.7, Math.cos(angle)*spd, Math.sin(angle)*spd);
+  updateHUD();
+}
+
+// ── Update ─────────────────────────────────────
+function update() {
+  if (state !== 'playing') return;
+
+  const spdMult  = slowTimer > 0 ? 0.45 : 1;
+  if (slowTimer > 0) slowTimer--;
+
+  const paddleY = canvas.height - PADDLE_Y_OFFSET - paddle.h;
+
+  if (cfg.inputMode === 'keyboard') {
+    const leftPressed = keys['ArrowLeft'] || keys['a'] || keys['A'];
+    const rightPressed = keys['ArrowRight'] || keys['d'] || keys['D'];
+    const dir = (rightPressed ? 1 : 0) - (leftPressed ? 1 : 0);
+    const moveSpeed = [6, 8, 10][cfg.speedLevel - 1];
+    paddle.x += dir * moveSpeed * spdMult;
+  } else {
+    const ratio = cfg.inputMode === 'sensor'
+      ? (serial.active ? Math.min(Math.max(sensorVal, 0) / cfg.maxDist, 1) : 0.5)
+      : mousePaddleX;
+    const targetX = ratio * (canvas.width - paddle.w);
+    paddle.x += (targetX - paddle.x) * 0.4;
+  }
+  paddle.x = Math.max(0, Math.min(canvas.width - paddle.w, paddle.x));
+
+  // ── Balls ──────────────────────────────────
+  for (let bi = balls.length - 1; bi >= 0; bi--) {
+    const b = balls[bi];
+    b.trail.push({ x: b.x, y: b.y });
+    if (b.trail.length > 7) b.trail.shift();
+
+    b.x += b.vx * spdMult;
+    b.y += b.vy * spdMult;
+
+    // 좌/우 벽
+    if (b.x - b.r < 0)            { b.x = b.r;                b.vx =  Math.abs(b.vx); }
+    if (b.x + b.r > canvas.width) { b.x = canvas.width - b.r; b.vx = -Math.abs(b.vx); }
+    // 천장
+    if (b.y - b.r < 0)            { b.y = b.r;                b.vy =  Math.abs(b.vy); }
+
+    // 패들 충돌 — 히트 위치에 따라 각도 결정, 항상 위쪽으로
+    if (
+      b.vy > 0 &&
+      b.y + b.r >= paddleY &&
+      b.y + b.r <= paddleY + paddle.h + b.r &&
+      b.x + b.r > paddle.x &&
+      b.x - b.r < paddle.x + paddle.w
+    ) {
+      b.y = paddleY - b.r;
+      // hitRatio: -1(왼쪽 끝) ~ +1(오른쪽 끝)
+      const hitRatio = ((b.x - paddle.x) / paddle.w) * 2 - 1;
+      const angle    = hitRatio * (Math.PI / 3.2); // 최대 ±56도
+      const spd      = baseSpeed();
+      b.vx =  Math.sin(angle) * spd;
+      b.vy = -Math.cos(angle) * spd; // 항상 위쪽
+    }
+
+    // Ball falls below screen
+    if (b.y - b.r > canvas.height + 10) {
+      burst(b.x, canvas.height - 10, '#ff4444', 8);
+      balls.splice(bi, 1);
+      if (balls.length === 0) {
+        lives--;
+        updateHUD();
+        if (lives <= 0) { endGame(); return; }
+        const spd   = baseSpeed();
+        const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.6;
+        spawnBall(paddle.x + paddle.w / 2, paddleY - 20,
+          Math.cos(angle)*spd, Math.sin(angle)*spd);
+      }
+      continue;
+    }
+
+    // ── Brick collisions ──────────────────────
+    for (let bri = bricks.length - 1; bri >= 0; bri--) {
+      const br = bricks[bri];
+      if (b.x + b.r < br.x || b.x - b.r > br.x + br.w) continue;
+      if (b.y + b.r < br.y || b.y - b.r > br.y + br.h) continue;
+
+      // 충돌 축 결정 후 반사, 속도 크기 유지
+      const ol  = (b.x + b.r) - br.x;
+      const or_ = (br.x + br.w) - (b.x - b.r);
+      const ot  = (b.y + b.r) - br.y;
+      const ob  = (br.y + br.h) - (b.y - b.r);
+      if (Math.min(ol, or_) < Math.min(ot, ob)) b.vx *= -1;
+      else                                       b.vy *= -1;
+      // 속도 크기 일정하게 유지
+      const curSpd = Math.hypot(b.vx, b.vy);
+      if (curSpd > 0) {
+        const norm = baseSpeed() / curSpd;
+        b.vx *= norm; b.vy *= norm;
+      }
+
+      br.hp--;
+      br.flash = 8;
+      burst(br.x + br.w/2, br.y + br.h/2, br.color, 6);
+
+      if (br.hp <= 0) {
+        score += br.pts;
+        burst(br.x + br.w/2, br.y + br.h/2, br.color, 14);
+        if (br.special === 'split') {
+          const a   = Math.atan2(b.vy, b.vx);
+          const spd = Math.hypot(b.vx, b.vy);
+          spawnBall(br.x + br.w/2, br.y + br.h/2, Math.cos(a+0.5)*spd, Math.sin(a+0.5)*spd);
+          spawnBall(br.x + br.w/2, br.y + br.h/2, Math.cos(a-0.5)*spd, Math.sin(a-0.5)*spd);
+        }
+        if (br.special === 'powerup') spawnPowerup(br.x + br.w/2, br.y + br.h);
+        bricks.splice(bri, 1);
+      }
+      break;
+    }
+  }
+
+  // ── Powerups ───────────────────────────────
+  const paddleY2 = canvas.height - PADDLE_Y_OFFSET - paddle.h;
+  for (let pi = powerups.length - 1; pi >= 0; pi--) {
+    const p = powerups[pi];
+    p.y += p.vy;
+    if (
+      p.x < paddle.x + paddle.w && p.x + p.w > paddle.x &&
+      p.y < paddleY2 + paddle.h  && p.y + p.h > paddleY2
+    ) {
+      applyPowerup(p.type);
+      burst(p.x + p.w/2, p.y, p.color, 12);
+      powerups.splice(pi, 1);
+    } else if (p.y > canvas.height + 10) {
+      powerups.splice(pi, 1);
+    }
+  }
+
+  // ── Particles ──────────────────────────────
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.06;
+    p.alpha -= 1 / p.life; p.life--;
+  });
+  particles = particles.filter(p => p.life > 0);
+
+  // Stage clear
+  if (bricks.length === 0) {
+    score += lives * 100;
+    setHi(score);
+    document.getElementById('clearScore').textContent = score.toLocaleString() + '점';
+    state = 'clear';
+    document.getElementById('clearPanel').classList.remove('hidden');
+  }
+
+  updateHUD();
+}
+
+// ── Draw ───────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#050510';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (state === 'menu') return;
+
+  const paddleY = canvas.height - PADDLE_Y_OFFSET - paddle.h;
+
+  // Bricks
+  bricks.forEach(br => {
+    const flash = br.flash > 0;
+    br.flash = Math.max(0, br.flash - 1);
+    ctx.save();
+    ctx.shadowColor = br.color;
+    ctx.shadowBlur  = flash ? 22 : 6;
+    ctx.globalAlpha = (br.maxHp > 1 && br.hp < br.maxHp) ? 0.55 : 1;
+    ctx.fillStyle   = flash ? '#ffffff' : br.color;
+    ctx.beginPath();
+    ctx.roundRect(br.x, br.y, br.w, br.h, 3);
+    ctx.fill();
+    // HP pips for strong bricks
+    if (br.maxHp > 1) {
+      ctx.fillStyle   = 'rgba(255,255,255,0.5)';
+      ctx.shadowBlur  = 0;
+      ctx.globalAlpha = 1;
+      for (let i = 0; i < br.hp; i++) {
+        ctx.beginPath();
+        ctx.arc(br.x + br.w - 8 - i * 10, br.y + br.h/2, 3, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  });
+
+  // Powerups
+  powerups.forEach(p => {
+    ctx.save();
+    ctx.shadowColor = p.color; ctx.shadowBlur = 12;
+    ctx.fillStyle   = p.color;
+    ctx.beginPath();
+    ctx.roundRect(p.x, p.y, p.w, p.h, 4);
+    ctx.fill();
+    ctx.fillStyle   = '#000';
+    ctx.font        = 'bold 11px monospace';
+    ctx.textAlign   = 'center';
+    ctx.shadowBlur  = 0;
+    ctx.fillText(p.label, p.x + p.w/2, p.y + p.h/2 + 4);
+    ctx.textAlign   = 'left';
+    ctx.restore();
+  });
+
+  // Paddle
+  ctx.save();
+  ctx.shadowColor = slowTimer > 0 ? '#00aaff' : '#a855f7';
+  ctx.shadowBlur  = 18;
+  ctx.fillStyle   = slowTimer > 0 ? '#00aaff' : '#a855f7';
+  ctx.beginPath();
+  ctx.roundRect(paddle.x, paddleY, paddle.w, paddle.h, 5);
+  ctx.fill();
+  ctx.restore();
+
+  // Balls + trails
+  balls.forEach(b => {
+    b.trail.forEach((t, i) => {
+      ctx.globalAlpha = (i / b.trail.length) * 0.35;
+      ctx.fillStyle   = '#00ffcc';
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, b.r * (i / b.trail.length), 0, Math.PI*2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    ctx.save();
+    ctx.shadowColor = '#00ffcc'; ctx.shadowBlur = 16;
+    ctx.fillStyle   = '#00ffcc';
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  });
+  ctx.globalAlpha = 1;
+
+  // Particles
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.alpha);
+    ctx.shadowColor = p.color; ctx.shadowBlur = 6;
+    ctx.fillStyle   = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  });
+  ctx.globalAlpha = 1;
+
+  // Slow indicator
+  if (slowTimer > 0) {
+    ctx.font      = 'bold 11px monospace';
+    ctx.fillStyle = 'rgba(0,170,255,0.8)';
+    ctx.fillText(`↓↓ 슬로우 ${Math.ceil(slowTimer/60)}s`, 8, canvas.height - 36);
+  }
+  ctx.font      = 'bold 11px monospace';
+  ctx.fillStyle = 'rgba(168,85,247,0.3)';
+  ctx.fillText(`STAGE ${stage}`, 8, 18);
+}
+
+// ── Loop ───────────────────────────────────────
+function loop() { requestAnimationFrame(loop); update(); draw(); }
+loop();
+
+// ── HUD ────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('scoreDisp').textContent  = score.toLocaleString();
+  document.getElementById('hiDisp').textContent     = Math.max(score, getHi()).toLocaleString();
+  document.getElementById('ballDisp').textContent   = balls.length;
+  document.getElementById('livesDisp').textContent  = '❤'.repeat(lives);
+}
+
+// ── Game flow ──────────────────────────────────
+function startGame() {
+  init(false); state = 'playing';
+  ['startPanel','overPanel','clearPanel'].forEach(id =>
+    document.getElementById(id).classList.add('hidden'));
+}
+function nextStage() {
+  stage++;
+  init(true); state = 'playing';
+  document.getElementById('clearPanel').classList.add('hidden');
+}
+function endGame() {
+  state = 'gameover'; setHi(score);
+  document.getElementById('finalDisp').textContent = score.toLocaleString() + '점';
+  document.getElementById('overPanel').classList.remove('hidden');
+  document.getElementById('hiDisp').textContent = getHi().toLocaleString();
+}
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('nextBtn').addEventListener('click', nextStage);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+
+// ── Input ──────────────────────────────────────
+window.addEventListener('keydown', e => {
+  if (cfg.inputMode !== 'keyboard') return;
+  if (['ArrowLeft', 'ArrowRight', 'a', 'A', 'd', 'D'].includes(e.key)) e.preventDefault();
+  keys[e.key] = true;
+});
+window.addEventListener('keyup', e => {
+  keys[e.key] = false;
+});
+canvas.addEventListener('mousemove', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  const rect = canvas.getBoundingClientRect();
+  mousePaddleX = (e.clientX - rect.left) / rect.width;
+});
+canvas.addEventListener('touchmove', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  mousePaddleX = (e.touches[0].clientX - rect.left) / rect.width;
+}, { passive: false });
+
+// ── Serial ─────────────────────────────────────
+serial.onData(v => {
+  sensorVal = v;
+  const pct = Math.min((v / cfg.maxDist) * 100, 100);
+  document.getElementById('sensorFill').style.width = pct + '%';
+  document.getElementById('sensorVal').textContent  = v.toFixed(1) + ' cm';
+  document.getElementById('tBigV').textContent      = v.toFixed(1) + ' cm';
+  document.getElementById('tBar').style.width       = pct + '%';
+});
+serial.onConnect(() => {
+  document.getElementById('connectBtn').textContent = '🔴 연결됨';
+  document.getElementById('connectBtn').classList.add('connected');
+});
+serial.onDisconnect(() => {
+  document.getElementById('connectBtn').textContent = '🔌 연결';
+  document.getElementById('connectBtn').classList.remove('connected');
+  sensorVal = 0;
+});
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) await serial.disconnect();
+  else try { await serial.connect(); } catch (e) { alert(e.message); }
+});
+
+// ── Settings ───────────────────────────────────
+document.getElementById('settBtn').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.toggle('open'));
+document.getElementById('closeSett').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.remove('open'));
+document.getElementById('maxDistSlider').addEventListener('input', e => {
+  cfg.maxDist = +e.target.value;
+  document.getElementById('maxDistLabel').textContent = cfg.maxDist;
+});
+document.getElementById('speedSlider').addEventListener('input', e => {
+  cfg.speedLevel = +e.target.value;
+  document.getElementById('speedLabel').textContent = ['느림','보통','빠름'][cfg.speedLevel - 1];
+});
+document.getElementById('inputModeSelect').addEventListener('change', e => {
+  setInputMode(e.target.value);
+});
+
+document.getElementById('hiDisp').textContent = getHi().toLocaleString();
+syncInputModeUI();
+</script>
+</body>
+</html>

@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>비행기 슈팅 — EZMaker</title>
+<style>
+  :root {
+    --bg: #050510;
+    --panel: #0d0d2b;
+    --border: #1a1a4a;
+    --accent: #00d4ff;
+    --danger: #ff4444;
+    --warn: #ffaa00;
+    --success: #00ff88;
+    --text: #e2e8f0;
+    --muted: #64748b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  /* ── Top bar ── */
+  #topbar {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 8px;
+  }
+  #topbar a { color: var(--muted); text-decoration: none; font-size: 0.8rem; }
+  #topbar a:hover { color: var(--accent); }
+  #topbar .score-display {
+    display: flex; gap: 16px; align-items: center;
+  }
+  .stat { text-align: center; }
+  .stat .label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .stat .value { font-size: 1.1rem; font-weight: 700; color: var(--accent); font-family: monospace; }
+  .lives { display: flex; gap: 4px; }
+  .life { font-size: 1rem; }
+
+  /* ── Energy bar ── */
+  #energyRow {
+    width: 100%;
+    max-width: 480px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 4px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  #energyRow .label { font-size: 0.65rem; color: var(--muted); white-space: nowrap; }
+  #energyTrack {
+    flex: 1; height: 10px;
+    background: #1a1a3a;
+    border-radius: 5px;
+    overflow: hidden;
+  }
+  #energyFill {
+    height: 100%; width: 100%;
+    border-radius: 5px;
+    transition: width 0.05s, background 0.2s;
+    background: var(--success);
+  }
+  #energyPct { font-size: 0.72rem; font-family: monospace; color: var(--success); min-width: 36px; text-align: right; }
+
+  /* ── Game canvas wrapper ── */
+  #gameWrap {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    max-width: 480px;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+
+  /* ── Sensor bar ── */
+  #sensorBar {
+    width: 100%;
+    max-width: 480px;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  #sensorBar .label { font-size: 0.7rem; color: var(--muted); white-space: nowrap; }
+  #sensorMeter {
+    flex: 1;
+    height: 8px;
+    background: #1a1a3a;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  #sensorFill {
+    height: 100%;
+    background: var(--success);
+    border-radius: 4px;
+    transition: width 0.1s, background 0.2s;
+    width: 0%;
+  }
+  #sensorVal { font-size: 0.75rem; font-family: monospace; color: var(--accent); min-width: 40px; text-align: right; }
+  #connectBtn, #settingsBtn, #leaderBtn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  #connectBtn:hover { border-color: var(--accent); color: var(--accent); }
+  #settingsBtn:hover { border-color: var(--warn); color: var(--warn); }
+  #leaderBtn:hover { border-color: var(--success); color: var(--success); }
+  #connectBtn.connected { border-color: var(--success); color: var(--success); }
+
+  /* ── Overlay panels ── */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.85);
+    z-index: 10;
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px;
+  }
+  .overlay.hidden { display: none; }
+  .overlay h2 { font-size: 1.5rem; font-weight: 800; color: var(--accent); text-align: center; }
+  .overlay .sub { color: var(--muted); font-size: 0.85rem; text-align: center; }
+  .btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 28px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    min-width: 140px;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn.secondary {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn.secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.danger { background: var(--danger); }
+
+  /* ── Settings panel ── */
+  #settingsPanel {
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: min(340px, 100%);
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    z-index: 20;
+    padding: 20px;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.3s;
+  }
+  #settingsPanel.open { transform: translateX(0); }
+  #settingsPanel h3 { color: var(--warn); margin-bottom: 20px; font-size: 1rem; }
+  .setting-row { margin-bottom: 18px; }
+  .setting-row label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+  .setting-row input[type=range] {
+    width: 100%; accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .setting-row select {
+    width: 100%;
+    background: #0a0a20;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .setting-row .range-labels { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+  .test-box {
+    background: #0a0a20;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 18px;
+    text-align: center;
+  }
+  .test-box .big-val {
+    font-size: 2.5rem;
+    font-weight: 900;
+    font-family: monospace;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .test-box .hint { font-size: 0.72rem; color: var(--muted); margin-top: 4px; }
+  .test-bar-wrap { height: 12px; background: #1a1a3a; border-radius: 6px; overflow: hidden; margin-top: 10px; }
+  #testBarFill { height: 100%; background: var(--success); border-radius: 6px; transition: width 0.1s, background 0.2s; width: 0%; }
+  .threshold-line { position: relative; height: 0; }
+  .threshold-marker {
+    position: absolute;
+    width: 2px;
+    height: 18px;
+    top: -15px;
+    background: var(--danger);
+    border-radius: 1px;
+    pointer-events: none;
+  }
+  .dark-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    margin-top: 10px;
+    background: rgba(255,68,68,0.1);
+    border: 1px solid rgba(255,68,68,0.3);
+    color: var(--danger);
+    display: none;
+  }
+  .dark-indicator.show { display: inline-flex; }
+
+  /* ── Leaderboard ── */
+  #leaderPanel {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(5,5,16,0.97);
+    z-index: 20;
+    padding: 24px;
+    overflow-y: auto;
+    transform: translateY(100%);
+    transition: transform 0.3s;
+  }
+  #leaderPanel.open { transform: translateY(0); }
+  #leaderPanel h3 { color: var(--success); margin-bottom: 16px; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center; }
+  .lb-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+  }
+  .lb-rank { font-weight: 900; color: var(--muted); min-width: 24px; font-family: monospace; }
+  .lb-rank.gold   { color: #ffd700; }
+  .lb-rank.silver { color: #c0c0c0; }
+  .lb-rank.bronze { color: #cd7f32; }
+  .lb-name { flex: 1; font-weight: 600; }
+  .lb-score { font-family: monospace; color: var(--accent); font-weight: 700; }
+  .lb-date { font-size: 0.7rem; color: var(--muted); }
+  .lb-empty { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 40px 0; }
+
+  /* ── Game over overlay ── */
+  #gameOverPanel .final-score { font-size: 2.5rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+  #gameOverPanel .rank-msg { font-size: 1rem; color: var(--success); }
+  #nameInput {
+    background: #0a0a20;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-size: 1rem;
+    width: 200px;
+    text-align: center;
+  }
+  #nameInput:focus { outline: none; border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- Top score bar -->
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div class="score-display">
+    <div class="stat"><div class="label">점수</div><div class="value" id="scoreDisplay">0</div></div>
+    <div class="stat"><div class="label">최고</div><div class="value" id="hiDisplay">0</div></div>
+    <div class="stat"><div class="label">미사일</div><div class="value" id="levelDisplay">Lv.1</div></div>
+    <div class="stat">
+      <div class="label">목숨</div>
+      <div class="lives" id="livesDisplay">
+        <span class="life">✈️</span><span class="life">✈️</span><span class="life">✈️</span>
+      </div>
+    </div>
+  </div>
+  <button id="leaderBtn">🏆</button>
+</div>
+
+<!-- Energy bar -->
+<div id="energyRow">
+  <span class="label">⚡ 에너지</span>
+  <div id="energyTrack"><div id="energyFill"></div></div>
+  <span id="energyPct">100%</span>
+</div>
+
+<!-- Canvas -->
+<div id="gameWrap">
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Start screen -->
+  <div class="overlay" id="startPanel">
+    <h2>✈️ 비행기 슈팅</h2>
+    <div class="sub">기본: 마우스로 좌우 이동 | 밝기 센서를 가리면 발사<br>설정에서 입력 모드 변경 가능<br>피격 시 레벨 다운</div>
+    <button class="btn" id="startBtn">게임 시작</button>
+    <button class="btn secondary" id="startLeaderBtn">🏆 리더보드</button>
+  </div>
+
+  <!-- Game Over -->
+  <div class="overlay hidden" id="gameOverPanel">
+    <h2>💥 게임 오버</h2>
+    <div class="final-score" id="finalScore">0</div>
+    <div class="rank-msg" id="rankMsg"></div>
+    <input id="nameInput" maxlength="10" placeholder="이름 입력 (최대 10자)" />
+    <button class="btn" id="saveScoreBtn">점수 저장 & 재시작</button>
+    <button class="btn secondary" id="restartNoSaveBtn">저장 안 함</button>
+  </div>
+</div>
+
+<!-- Sensor bar -->
+<div id="sensorBar">
+  <span class="label">밝기</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">—</span>
+  <button id="settingsBtn">⚙️</button>
+  <button id="connectBtn">🔌 연결</button>
+</div>
+
+<!-- Settings panel -->
+<div id="settingsPanel">
+  <h3>⚙️ 센서 · 입력 설정</h3>
+
+  <div class="test-box">
+    <div class="big-val" id="testBigVal">—</div>
+    <div class="hint">현재 밝기 센서 값 (0~1023)</div>
+    <div class="test-bar-wrap">
+      <div id="testBarFill"></div>
+    </div>
+    <div class="dark-indicator" id="darkIndicator">🌑 어두움 감지 — 미사일 강화!</div>
+  </div>
+
+  <div class="setting-row">
+    <label>입력 모드: <strong id="inputModeLabel">센서</strong></label>
+    <select id="inputModeSelect">
+      <option value="mouse+sensor">마우스 이동 + 센서 발사 (기본)</option>
+      <option value="sensor">센서 자동이동 + 센서 발사</option>
+      <option value="keyboard">키보드만</option>
+      <option value="mouse">마우스만 (클릭 발사)</option>
+      <option value="keyboard+mouse">키보드 + 마우스</option>
+    </select>
+    <div style="font-size:0.72rem;color:var(--muted);margin-top:6px;">
+      센서 모드에서는 비행기가 자동으로 이동하고, 밝기 센서를 가리면 발사합니다.
+    </div>
+  </div>
+
+  <div class="setting-row">
+    <label>발사 임계값: <strong id="thresholdLabel">300</strong></label>
+    <input type="range" id="thresholdSlider" min="0" max="1023" value="300" step="1">
+    <div class="range-labels"><span>0</span><span>1023</span></div>
+    <div style="font-size:0.72rem;color:var(--muted);margin-top:6px;">
+      센서 값이 이 값보다 낮으면 발사합니다. (손으로 가려서 어두워졌을 때)
+    </div>
+  </div>
+
+  <div class="setting-row">
+    <label>게임 속도: <strong id="speedLabel">보통</strong></label>
+    <input type="range" id="speedSlider" min="1" max="3" value="2" step="1">
+    <div class="range-labels"><span>느림</span><span>빠름</span></div>
+  </div>
+
+  <button class="btn" id="closeSetting" style="width:100%">닫기</button>
+  <div style="height:16px"></div>
+  <button class="btn danger" id="clearLBBtn" style="width:100%;background:rgba(255,68,68,0.15);color:var(--danger);border:1px solid var(--danger)">리더보드 초기화</button>
+</div>
+
+<!-- Leaderboard panel -->
+<div id="leaderPanel">
+  <h3>
+    🏆 리더보드
+    <button class="btn secondary" style="padding:4px 12px;font-size:0.75rem" id="closeLeader">닫기</button>
+  </h3>
+  <div id="leaderList"></div>
+</div>
+
+<script src="js/serial.js"></script>
+<script>
+// ══════════════════════════════════════════════
+//  Config & State
+// ══════════════════════════════════════════════
+const cfg = {
+  threshold: 300,  // sensor < this = covered = shoot
+  speedLevel: 2,   // 1=slow, 2=normal, 3=fast
+  inputMode: 'mouse+sensor',
+};
+
+const serial = new SerialManager();
+let sensorValue = 512; // default midpoint
+
+// ══════════════════════════════════════════════
+//  Canvas setup
+// ══════════════════════════════════════════════
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('gameWrap');
+
+function resizeCanvas() {
+  canvas.width  = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ══════════════════════════════════════════════
+//  Game state
+// ══════════════════════════════════════════════
+const GS = {
+  MENU: 'menu',
+  PLAYING: 'playing',
+  GAMEOVER: 'gameover',
+};
+
+let state = GS.MENU;
+let score = 0;
+let lives = 3;
+let frame = 0;
+let lastTime = 0;
+let spawnTimer = 0;
+let bgStars = [];
+let energy = 100;       // 0~100
+const ENERGY_MAX = 100;
+const ENERGY_DRAIN = 1.8;   // per frame while shooting
+const ENERGY_CHARGE = 0.6;  // per frame while not shooting
+
+const player = {
+  x: 0, y: 0,
+  w: 36, h: 40,
+  speed: 5,
+  bullets: [],
+  shootPending: false,
+  shootCooldown: 0,
+  missileLevel: 1,   // 1~5
+};
+
+let enemies = [];
+let items = [];       // powerup items
+let explosions = [];
+let bgScrollY = 0;
+
+const keys = {};
+let mouseHeld = false;
+const INPUT_MODE_LABELS = {
+  'mouse+sensor': '마우스+센서',
+  sensor: '센서(자동이동)',
+  keyboard: '키보드',
+  mouse: '마우스',
+  'keyboard+mouse': '키보드+마우스',
+};
+
+function syncInputModeUI() {
+  document.getElementById('inputModeSelect').value = cfg.inputMode;
+  document.getElementById('inputModeLabel').textContent = INPUT_MODE_LABELS[cfg.inputMode];
+}
+
+function setInputMode(mode) {
+  cfg.inputMode = INPUT_MODE_LABELS[mode] ? mode : 'sensor';
+  Object.keys(keys).forEach(key => { keys[key] = false; });
+  player.shootPending = false;
+  syncInputModeUI();
+}
+
+function getAutoPilotTargetX() {
+  let targetX = canvas.width / 2 - player.w / 2;
+  let bestScore = -Infinity;
+
+  for (const item of items) {
+    const score = 2000 + item.y;
+    if (score > bestScore) {
+      bestScore = score;
+      targetX = item.x + item.w / 2 - player.w / 2;
+    }
+  }
+
+  for (const enemy of enemies) {
+    const score = enemy.y;
+    if (score > bestScore) {
+      bestScore = score;
+      targetX = enemy.x + enemy.w / 2 - player.w / 2;
+    }
+  }
+
+  return Math.max(0, Math.min(canvas.width - player.w, targetX));
+}
+
+// ══════════════════════════════════════════════
+//  Leaderboard (localStorage)
+// ══════════════════════════════════════════════
+const LB_KEY = 'airplane_leaderboard';
+function loadLB() {
+  try { return JSON.parse(localStorage.getItem(LB_KEY)) || []; } catch { return []; }
+}
+function saveLB(arr) { localStorage.setItem(LB_KEY, JSON.stringify(arr)); }
+function normalizeName(name) {
+  return String(name || '익명').trim().slice(0, 10) || '익명';
+}
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[ch]);
+}
+function addLBEntry(name, score) {
+  const lb = loadLB();
+  lb.push({ name: normalizeName(name), score, date: new Date().toLocaleDateString('ko-KR') });
+  lb.sort((a, b) => b.score - a.score);
+  lb.splice(10);
+  saveLB(lb);
+  return lb;
+}
+function getHiScore() {
+  const lb = loadLB();
+  return lb.length ? lb[0].score : 0;
+}
+
+function renderLeaderboard() {
+  const lb = loadLB();
+  const el = document.getElementById('leaderList');
+  if (!lb.length) {
+    el.innerHTML = '<div class="lb-empty">아직 기록이 없습니다.<br>게임을 플레이해 보세요!</div>';
+    return;
+  }
+  const rankClass = ['gold','silver','bronze'];
+  el.innerHTML = lb.map((e, i) => `
+    <div class="lb-row">
+      <span class="lb-rank ${rankClass[i]||''}">#${i+1}</span>
+      <span class="lb-name">${escapeHTML(e.name)}</span>
+      <span class="lb-score">${e.score.toLocaleString()}</span>
+      <span class="lb-date">${e.date}</span>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════════
+//  Game init / reset
+// ══════════════════════════════════════════════
+function initGame() {
+  score = 0;
+  lives = 3;
+  frame = 0;
+  spawnTimer = 0;
+  enemies = [];
+  items = [];
+  explosions = [];
+  player.bullets = [];
+  player.shootPending = false;
+  player.shootCooldown = 0;
+  player.missileLevel = 1;
+  Object.keys(keys).forEach(key => { keys[key] = false; });
+  mouseHeld = false;
+  energy = ENERGY_MAX;
+  player.x = canvas.width / 2 - player.w / 2;
+  player.y = canvas.height - player.h - 20;
+
+  // Generate background stars
+  bgStars = Array.from({ length: 80 }, () => ({
+    x: Math.random() * 500,
+    y: Math.random() * 900,
+    r: Math.random() * 1.5 + 0.5,
+    speed: Math.random() * 0.5 + 0.2,
+    alpha: Math.random() * 0.7 + 0.3,
+  }));
+
+  updateScoreUI();
+  updateLivesUI();
+}
+
+// ══════════════════════════════════════════════
+//  Spawn enemies
+// ══════════════════════════════════════════════
+const ENEMY_TYPES = [
+  { type: 'ufo',     color: '#ff4444', w: 28, h: 18, hp: 1, speed: 2.5, score: 10 },
+  { type: 'big',     color: '#ff8800', w: 40, h: 28, hp: 3, speed: 1.5, score: 30 },
+  { type: 'missile', color: '#ff00aa', w: 14, h: 34, hp: 1, speed: 4.5, score: 15 },
+  { type: 'fast',    color: '#ffdd00', w: 20, h: 20, hp: 1, speed: 6,   score: 20 },
+];
+
+function spawnEnemy() {
+  const speedMult = [0.7, 1, 1.4][cfg.speedLevel - 1];
+  // Gradually unlock harder enemy types as score rises
+  const typePool = frame < 600 ? 2 : frame < 1200 ? 3 : ENEMY_TYPES.length;
+  const t = ENEMY_TYPES[Math.floor(Math.random() * typePool)];
+  const margin = 10;
+  enemies.push({
+    ...t,
+    x: margin + Math.random() * (canvas.width - t.w - margin * 2),
+    y: -t.h,
+    speedActual: (t.speed + Math.random() * 1) * speedMult,
+    hp: t.hp,
+    maxHp: t.hp,
+  });
+}
+
+// ── Powerup item spawn ──
+function spawnItem(x, y) {
+  items.push({ x: x - 10, y, w: 20, h: 20, vy: 1.5, angle: 0 });
+}
+
+// ── Fire missiles based on level ──
+const SHOT_OFFSETS = {
+  1: [0],
+  2: [-9, 9],
+  3: [-14, 0, 14],
+  4: [-20, -7, 7, 20],
+  5: [-24, -12, 0, 12, 24],
+};
+function fireMissiles() {
+  const cx = player.x + player.w / 2;
+  for (const ox of SHOT_OFFSETS[player.missileLevel]) {
+    player.bullets.push({ x: cx + ox - 3, y: player.y + 4, w: 6, h: 14, vx: ox * 0.08 });
+  }
+}
+
+// ══════════════════════════════════════════════
+//  Update (game logic)
+// ══════════════════════════════════════════════
+function update(dt) {
+  if (state !== GS.PLAYING) return;
+  frame++;
+  score += 1;
+
+  const speedMult = [0.7, 1, 1.4][cfg.speedLevel - 1];
+
+  // Spawn enemies
+  const baseInterval = Math.max(30, 90 - Math.floor(frame / 300) * 5);
+  spawnTimer++;
+  if (spawnTimer >= baseInterval) { spawnEnemy(); spawnTimer = 0; }
+
+  // Player movement
+  const pSpeed = player.speed * speedMult;
+  if (cfg.inputMode === 'sensor') {
+    const targetX = getAutoPilotTargetX();
+    const diff = targetX - player.x;
+    player.x += Math.sign(diff) * Math.min(Math.abs(diff), pSpeed * 0.9);
+  } else if (cfg.inputMode === 'keyboard' || cfg.inputMode === 'keyboard+mouse') {
+    if (keys['ArrowLeft']  || keys['a'] || keys['A']) player.x -= pSpeed;
+    if (keys['ArrowRight'] || keys['d'] || keys['D']) player.x += pSpeed;
+  }
+  player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
+
+  // ── Energy: drain while firing, charge while resting ──
+  const sensorCovered = (cfg.inputMode === 'sensor' || cfg.inputMode === 'mouse+sensor') && sensorValue < cfg.threshold;
+  const keyFire = (cfg.inputMode === 'keyboard' || cfg.inputMode === 'keyboard+mouse') && !!keys[' '];
+  const mouseFire = (cfg.inputMode === 'mouse' || cfg.inputMode === 'keyboard+mouse') && mouseHeld;
+  const wantFire = sensorCovered || keyFire || mouseFire || player.shootPending;
+  const canFire = energy > 0;
+
+  if (wantFire && canFire) {
+    energy = Math.max(0, energy - ENERGY_DRAIN);
+  } else if (!wantFire) {
+    // 센서 안 가릴 때만 충전 (가리는 중엔 충전 없음)
+    energy = Math.min(ENERGY_MAX, energy + ENERGY_CHARGE);
+  }
+  player.shootPending = false;
+  updateEnergyUI();
+
+  // ── Shoot ──
+  if (player.shootCooldown > 0) player.shootCooldown--;
+  if (wantFire && canFire && player.shootCooldown === 0) {
+    fireMissiles();
+    player.shootCooldown = 14;
+  }
+
+  // Bullets move (vx for spread)
+  player.bullets.forEach(b => { b.y -= 9 * speedMult; b.x += (b.vx || 0); });
+  player.bullets = player.bullets.filter(b => b.y + b.h > 0);
+
+  // Enemies move
+  enemies.forEach(e => { e.y += e.speedActual; });
+
+  // Bullet × Enemy
+  for (let bi = player.bullets.length - 1; bi >= 0; bi--) {
+    const b = player.bullets[bi];
+    for (let ei = enemies.length - 1; ei >= 0; ei--) {
+      const e = enemies[ei];
+      if (b.x < e.x + e.w && b.x + b.w > e.x && b.y < e.y + e.h && b.y + b.h > e.y) {
+        e.hp--;
+        player.bullets.splice(bi, 1);
+        if (e.hp <= 0) {
+          score += e.score;
+          spawnExplosion(e.x + e.w / 2, e.y + e.h / 2, e.color);
+          // 40% chance drop item
+          if (Math.random() < 0.4) spawnItem(e.x + e.w / 2, e.y);
+          enemies.splice(ei, 1);
+        }
+        break;
+      }
+    }
+  }
+
+  // Items move & collect
+  items.forEach(it => { it.y += it.vy; it.angle += 0.05; });
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    if (it.y > canvas.height + 10) { items.splice(i, 1); continue; }
+    if (
+      it.x < player.x + player.w && it.x + it.w > player.x &&
+      it.y < player.y + player.h && it.y + it.h > player.y
+    ) {
+      player.missileLevel = Math.min(player.missileLevel + 1, 5);
+      spawnExplosion(it.x + it.w / 2, it.y + it.h / 2, '#ffd700');
+      items.splice(i, 1);
+      updateLevelUI();
+    }
+  }
+
+  // Enemy × Player
+  for (let ei = enemies.length - 1; ei >= 0; ei--) {
+    const e = enemies[ei];
+    if (e.y > canvas.height + 10) { enemies.splice(ei, 1); continue; }
+    if (
+      e.x < player.x + player.w && e.x + e.w > player.x &&
+      e.y < player.y + player.h && e.y + e.h > player.y
+    ) {
+      lives--;
+      player.missileLevel = Math.max(player.missileLevel - 1, 1); // level down on hit
+      spawnExplosion(player.x + player.w / 2, player.y + player.h / 2, '#00d4ff');
+      enemies.splice(ei, 1);
+      updateLivesUI();
+      updateLevelUI();
+      if (lives <= 0) { endGame(); return; }
+    }
+  }
+
+  // Explosions
+  explosions.forEach(ex => { ex.life--; ex.r += 1.5; ex.alpha = ex.life / ex.maxLife; });
+  explosions = explosions.filter(ex => ex.life > 0);
+
+  bgScrollY = (bgScrollY + 0.8 * speedMult) % canvas.height;
+  updateScoreUI();
+}
+
+function spawnExplosion(x, y, color) {
+  for (let i = 0; i < 8; i++) {
+    explosions.push({
+      x, y,
+      r: Math.random() * 4 + 2,
+      color,
+      life: 20 + Math.random() * 10,
+      maxLife: 30,
+      alpha: 1,
+      vx: (Math.random() - 0.5) * 4,
+      vy: (Math.random() - 0.5) * 4,
+    });
+  }
+}
+
+// ══════════════════════════════════════════════
+//  Draw
+// ══════════════════════════════════════════════
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background
+  const grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  grd.addColorStop(0, '#030310');
+  grd.addColorStop(1, '#050520');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Stars
+  bgStars.forEach(s => {
+    ctx.globalAlpha = s.alpha;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(s.x, (s.y + bgScrollY) % canvas.height, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  if (state === GS.PLAYING || state === GS.GAMEOVER) {
+    drawBullets();
+    drawItems();
+    drawEnemies();
+    drawExplosions();
+    drawPlayer();
+    drawShootIndicator();
+  }
+}
+
+function drawPlayer() {
+  const p = player;
+  ctx.save();
+  ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
+
+  // Engine glow
+  ctx.shadowColor = '#00d4ff';
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = '#00d4ff';
+  ctx.fillRect(-3, p.h / 2 - 4, 6, 8);
+
+  // Body
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = '#4af';
+  ctx.beginPath();
+  ctx.moveTo(0, -p.h / 2);
+  ctx.lineTo(-p.w / 2, p.h / 2);
+  ctx.lineTo(-p.w / 4, p.h / 4);
+  ctx.lineTo(0, p.h / 3);
+  ctx.lineTo(p.w / 4, p.h / 4);
+  ctx.lineTo(p.w / 2, p.h / 2);
+  ctx.closePath();
+  ctx.fill();
+
+  // Cockpit
+  ctx.fillStyle = '#aef';
+  ctx.beginPath();
+  ctx.ellipse(0, -p.h / 6, 6, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+  ctx.shadowBlur = 0;
+}
+
+function drawBullets() {
+  player.bullets.forEach(b => {
+    ctx.save();
+    ctx.shadowColor = '#00ff88';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = '#00ff88';
+    ctx.beginPath();
+    ctx.roundRect(b.x, b.y, b.w, b.h, 3);
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+function drawItems() {
+  items.forEach(it => {
+    ctx.save();
+    ctx.translate(it.x + it.w / 2, it.y + it.h / 2);
+    ctx.rotate(it.angle);
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 14;
+    // Star shape
+    ctx.fillStyle = '#ffd700';
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+      const r = i % 2 === 0 ? 10 : 5;
+      ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  });
+  ctx.shadowBlur = 0;
+}
+
+function drawShootIndicator() {
+  const covered = sensorValue < cfg.threshold;
+  const noEnergy = energy <= 0;
+  ctx.save();
+  ctx.font = 'bold 11px monospace';
+  if (noEnergy) {
+    ctx.fillStyle = 'rgba(255,68,68,0.9)';
+    ctx.shadowColor = '#ff4444';
+    ctx.shadowBlur = 8;
+    ctx.fillText('⚡ 에너지 충전 중...', 10, canvas.height - 8);
+  } else if (covered) {
+    ctx.fillStyle = 'rgba(0,255,136,0.9)';
+    ctx.shadowColor = '#00ff88';
+    ctx.shadowBlur = 6;
+    ctx.fillText('🔫 발사 중', 10, canvas.height - 8);
+  } else {
+    ctx.fillStyle = 'rgba(100,116,139,0.6)';
+    ctx.shadowBlur = 0;
+    ctx.fillText('가리면 발사 ⚡충전 중', 10, canvas.height - 8);
+  }
+  ctx.restore();
+  ctx.shadowBlur = 0;
+}
+
+function drawDarkWarning() {} // kept for safety, now empty
+
+function drawEnemies() {
+  enemies.forEach(e => {
+    ctx.save();
+    ctx.shadowColor = e.color;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = e.color;
+
+    if (e.type === 'missile') {
+      // Missile shape
+      ctx.beginPath();
+      ctx.moveTo(e.x + e.w / 2, e.y + e.h);
+      ctx.lineTo(e.x, e.y + e.h * 0.6);
+      ctx.lineTo(e.x + e.w / 4, e.y);
+      ctx.lineTo(e.x + e.w * 3 / 4, e.y);
+      ctx.lineTo(e.x + e.w, e.y + e.h * 0.6);
+      ctx.closePath();
+      ctx.fill();
+    } else if (e.type === 'big') {
+      // Big saucer
+      ctx.beginPath();
+      ctx.ellipse(e.x + e.w / 2, e.y + e.h / 2, e.w / 2, e.h / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // HP bar
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(e.x, e.y - 6, e.w, 4);
+      ctx.fillStyle = '#00ff88';
+      ctx.fillRect(e.x, e.y - 6, e.w * (e.hp / e.maxHp), 4);
+    } else {
+      // UFO / fast
+      ctx.beginPath();
+      ctx.ellipse(e.x + e.w / 2, e.y + e.h / 2, e.w / 2, e.h * 0.35, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(e.x + e.w / 2, e.y + e.h * 0.4, e.w * 0.3, e.h * 0.25, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  });
+}
+
+function drawExplosions() {
+  explosions.forEach(ex => {
+    ex.x += ex.vx;
+    ex.y += ex.vy;
+    ctx.save();
+    ctx.globalAlpha = ex.alpha;
+    ctx.shadowColor = ex.color;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = ex.color;
+    ctx.beginPath();
+    ctx.arc(ex.x, ex.y, ex.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+}
+
+function drawDarkWarning() {
+  if (sensorValue < cfg.threshold) {
+    ctx.save();
+    ctx.font = 'bold 11px monospace';
+    ctx.fillStyle = 'rgba(255,80,80,0.8)';
+    ctx.shadowColor = '#ff0044';
+    ctx.shadowBlur = 6;
+    ctx.fillText('🌑 어두움 — 미사일 강화', 10, canvas.height - 8);
+    ctx.restore();
+  }
+}
+
+// ══════════════════════════════════════════════
+//  Game loop
+// ══════════════════════════════════════════════
+function loop(ts) {
+  requestAnimationFrame(loop);
+  const dt = Math.min((ts - lastTime) / 16.67, 3);
+  lastTime = ts;
+  update(dt);
+  draw();
+}
+requestAnimationFrame(loop);
+
+// ══════════════════════════════════════════════
+//  Game state transitions
+// ══════════════════════════════════════════════
+function startGame() {
+  initGame();
+  state = GS.PLAYING;
+  document.getElementById('startPanel').classList.add('hidden');
+  document.getElementById('gameOverPanel').classList.add('hidden');
+}
+
+function endGame() {
+  state = GS.GAMEOVER;
+  document.getElementById('finalScore').textContent = score.toLocaleString();
+
+  const hi = getHiScore();
+  if (score >= hi) {
+    document.getElementById('rankMsg').textContent = '🎉 신기록!';
+  } else {
+    const lb = loadLB();
+    const rank = lb.filter(e => e.score >= score).length + 1;
+    document.getElementById('rankMsg').textContent = rank <= 10 ? `순위: ${rank}위` : '';
+  }
+  document.getElementById('gameOverPanel').classList.remove('hidden');
+  document.getElementById('nameInput').value = '';
+  document.getElementById('nameInput').focus();
+}
+
+// ══════════════════════════════════════════════
+//  UI helpers
+// ══════════════════════════════════════════════
+function updateScoreUI() {
+  document.getElementById('scoreDisplay').textContent = score.toLocaleString();
+  document.getElementById('hiDisplay').textContent = Math.max(score, getHiScore()).toLocaleString();
+}
+
+function updateLivesUI() {
+  const el = document.getElementById('livesDisplay');
+  el.innerHTML = Array.from({ length: 3 }, (_, i) =>
+    `<span class="life" style="opacity:${i < lives ? 1 : 0.2}">✈️</span>`
+  ).join('');
+}
+
+function updateEnergyUI() {
+  const pct = energy / ENERGY_MAX;
+  const el = document.getElementById('energyFill');
+  const pt = document.getElementById('energyPct');
+  el.style.width = (pct * 100) + '%';
+  // Color: green → yellow → red
+  const color = pct > 0.5 ? '#00ff88' : pct > 0.2 ? '#ffaa00' : '#ff4444';
+  el.style.background = color;
+  document.getElementById('energyPct').textContent = Math.ceil(pct * 100) + '%';
+  document.getElementById('energyPct').style.color = color;
+}
+
+function updateLevelUI() {
+  const lv = player.missileLevel;
+  const el = document.getElementById('levelDisplay');
+  const colors = ['','#00ff88','#44aaff','#ffaa00','#ff66ff','#ff4444'];
+  el.textContent = `Lv.${lv}`;
+  el.style.color = colors[lv];
+}
+
+function updateSensorUI(val) {
+  const pct = (val / 1023) * 100;
+  const isDark = val < cfg.threshold;
+  document.getElementById('sensorFill').style.width = pct + '%';
+  document.getElementById('sensorFill').style.background = isDark ? '#ff4444' : '#00ff88';
+  document.getElementById('sensorVal').textContent = Math.round(val);
+
+  // Settings test box
+  document.getElementById('testBigVal').textContent = Math.round(val);
+  document.getElementById('testBarFill').style.width = pct + '%';
+  document.getElementById('testBarFill').style.background = isDark ? '#ff4444' : '#00ff88';
+  document.getElementById('darkIndicator').classList.toggle('show', isDark);
+}
+
+// ══════════════════════════════════════════════
+//  Input
+// ══════════════════════════════════════════════
+window.addEventListener('keydown', e => {
+  if (cfg.inputMode !== 'keyboard' && cfg.inputMode !== 'keyboard+mouse') return;
+  keys[e.key] = true;
+  if (e.key === ' ') {
+    e.preventDefault();
+    if (state === GS.PLAYING) player.shootPending = true;
+  }
+});
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// Mouse: move to aim, click to shoot
+canvas.addEventListener('mousemove', e => {
+  if (cfg.inputMode !== 'mouse' && cfg.inputMode !== 'keyboard+mouse' && cfg.inputMode !== 'mouse+sensor') return;
+  if (state !== GS.PLAYING) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+  player.x = mx - player.w / 2;
+  player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
+});
+canvas.addEventListener('mousedown', e => {
+  if (cfg.inputMode !== 'mouse' && cfg.inputMode !== 'keyboard+mouse') return;
+  if (state !== GS.PLAYING) return;
+  mouseHeld = true;
+  player.shootPending = true;
+});
+canvas.addEventListener('mouseup', () => { mouseHeld = false; });
+window.addEventListener('mouseup', () => { mouseHeld = false; });
+
+// Touch: move finger to aim, tap to shoot
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (cfg.inputMode !== 'mouse' && cfg.inputMode !== 'keyboard+mouse' && cfg.inputMode !== 'mouse+sensor') return;
+  if (state !== GS.PLAYING) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.touches[0].clientX - rect.left) * (canvas.width / rect.width);
+  player.x = mx - player.w / 2;
+  player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
+}, { passive: false });
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (cfg.inputMode !== 'mouse' && cfg.inputMode !== 'keyboard+mouse') return;
+  if (state !== GS.PLAYING) return;
+  mouseHeld = true;
+  player.shootPending = true;
+}, { passive: false });
+canvas.addEventListener('touchend', () => { mouseHeld = false; }, { passive: false });
+
+// ══════════════════════════════════════════════
+//  Serial
+// ══════════════════════════════════════════════
+serial.onData(val => {
+  sensorValue = val;
+  updateSensorUI(val);
+});
+serial.onConnect(() => {
+  document.getElementById('connectBtn').textContent = '🔴 연결됨';
+  document.getElementById('connectBtn').classList.add('connected');
+});
+serial.onDisconnect(() => {
+  document.getElementById('connectBtn').textContent = '🔌 연결';
+  document.getElementById('connectBtn').classList.remove('connected');
+  sensorValue = 512;
+  updateSensorUI(512);
+});
+
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) {
+    await serial.disconnect();
+  } else {
+    try { await serial.connect(); } catch (e) { alert(e.message); }
+  }
+});
+
+// ══════════════════════════════════════════════
+//  Settings panel
+// ══════════════════════════════════════════════
+const settingsPanel = document.getElementById('settingsPanel');
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  settingsPanel.classList.toggle('open');
+  if (settingsPanel.classList.contains('open')) renderLeaderboard();
+});
+document.getElementById('closeSetting').addEventListener('click', () => {
+  settingsPanel.classList.remove('open');
+});
+
+document.getElementById('thresholdSlider').addEventListener('input', e => {
+  cfg.threshold = +e.target.value;
+  document.getElementById('thresholdLabel').textContent = cfg.threshold;
+  updateSensorUI(sensorValue);
+});
+document.getElementById('speedSlider').addEventListener('input', e => {
+  cfg.speedLevel = +e.target.value;
+  document.getElementById('speedLabel').textContent = ['느림','보통','빠름'][cfg.speedLevel - 1];
+});
+document.getElementById('inputModeSelect').addEventListener('change', e => {
+  setInputMode(e.target.value);
+});
+document.getElementById('clearLBBtn').addEventListener('click', () => {
+  if (confirm('리더보드를 초기화하시겠습니까?')) {
+    saveLB([]);
+    renderLeaderboard();
+  }
+});
+
+// ══════════════════════════════════════════════
+//  Leaderboard panel
+// ══════════════════════════════════════════════
+const leaderPanel = document.getElementById('leaderPanel');
+
+function openLeader() {
+  renderLeaderboard();
+  leaderPanel.classList.add('open');
+}
+document.getElementById('leaderBtn').addEventListener('click', openLeader);
+document.getElementById('startLeaderBtn').addEventListener('click', openLeader);
+document.getElementById('closeLeader').addEventListener('click', () => leaderPanel.classList.remove('open'));
+
+// ══════════════════════════════════════════════
+//  Game over buttons
+// ══════════════════════════════════════════════
+document.getElementById('startBtn').addEventListener('click', startGame);
+
+document.getElementById('saveScoreBtn').addEventListener('click', () => {
+  const name = document.getElementById('nameInput').value.trim();
+  addLBEntry(name, score);
+  startGame();
+});
+
+document.getElementById('restartNoSaveBtn').addEventListener('click', startGame);
+
+// Init UI
+syncInputModeUI();
+updateSensorUI(512);
+updateLivesUI();
+updateScoreUI();
+</script>
+</body>
+</html>

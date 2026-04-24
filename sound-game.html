@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>밝기 점프 — EZMaker</title>
+<style>
+  :root {
+    --bg:#080810;--panel:#0d0d20;--border:#1a1a3a;
+    --accent:#ff6b35;--success:#00ff88;--muted:#64748b;--text:#e2e8f0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+    height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+  #topbar{width:100%;max-width:480px;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);gap:8px;}
+  #topbar a{color:var(--muted);text-decoration:none;font-size:.8rem;}
+  #topbar a:hover{color:var(--accent);}
+  .stat{text-align:center;}
+  .stat .label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat .value{font-size:1.1rem;font-weight:700;color:var(--accent);font-family:monospace;}
+  #gameWrap{position:relative;flex:1;width:100%;max-width:480px;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+  #sensorBar{width:100%;max-width:480px;background:var(--panel);border-top:1px solid var(--border);
+    padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  #sensorBar .label{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  #sensorMeter{flex:1;height:8px;background:#1a1a3a;border-radius:4px;overflow:hidden;}
+  #sensorFill{height:100%;background:var(--success);border-radius:4px;transition:width .05s,background .1s;width:0%;}
+  #sensorVal{font-size:.75rem;font-family:monospace;color:var(--accent);min-width:40px;text-align:right;}
+  button.ctrl{background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;
+    padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;}
+  button.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+  button.ctrl.connected{border-color:var(--success);color:var(--success);}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.85);z-index:10;flex-direction:column;gap:14px;padding:24px;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-size:1.4rem;font-weight:800;color:var(--accent);text-align:center;}
+  .overlay .sub{color:var(--muted);font-size:.82rem;text-align:center;line-height:1.6;}
+  .btn{background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 28px;
+    font-size:.95rem;font-weight:700;cursor:pointer;min-width:140px;}
+  .btn.secondary{background:none;border:1px solid var(--border);color:var(--text);}
+  .btn.secondary:hover{border-color:var(--accent);color:var(--accent);}
+  #settingPanel{position:absolute;top:0;right:0;bottom:0;width:min(300px,100%);background:var(--panel);
+    border-left:1px solid var(--border);z-index:20;padding:20px;overflow-y:auto;
+    transform:translateX(100%);transition:transform .3s;}
+  #settingPanel.open{transform:translateX(0);}
+  #settingPanel h3{color:var(--accent);margin-bottom:18px;font-size:1rem;}
+  .srow{margin-bottom:16px;}
+  .srow label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;}
+  .srow input[type=range]{width:100%;accent-color:var(--accent);}
+  .srow select{width:100%;background:#0a0a18;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;}
+  .testbox{background:#0a0a18;border:1px solid var(--border);border-radius:8px;padding:14px;
+    margin-bottom:16px;text-align:center;}
+  .testbox .bigv{font-size:2.5rem;font-weight:900;font-family:monospace;color:var(--accent);line-height:1;}
+  .testbox .hint{font-size:.72rem;color:var(--muted);margin-top:4px;}
+  .jump-indicator{display:none;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;
+    font-size:.75rem;margin-top:8px;background:rgba(255,107,53,.15);border:1px solid rgba(255,107,53,.4);color:var(--accent);}
+  .jump-indicator.show{display:inline-flex;}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div style="display:flex;gap:16px;align-items:center">
+    <div class="stat"><div class="label">점수</div><div class="value" id="scoreDisp">0</div></div>
+    <div class="stat"><div class="label">최고</div><div class="value" id="hiDisp">0</div></div>
+    <div class="stat">
+      <div class="label">체력</div>
+      <div id="hpDisp" style="display:flex;gap:2px;justify-content:center;margin-top:2px"></div>
+    </div>
+  </div>
+  <button class="ctrl" id="settBtn">⚙️</button>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+
+  <div class="overlay" id="startPanel">
+    <h2>💡 밝기 점프</h2>
+    <div class="sub">밝기 센서를 손으로 가리면 점프합니다.<br>설정에서 키보드 Space 또는 마우스 클릭 조작으로 바꿀 수 있습니다.</div>
+    <button class="btn" id="startBtn">시작</button>
+  </div>
+
+  <div class="overlay hidden" id="overPanel">
+    <h2>💥 게임 오버</h2>
+    <div style="font-size:2rem;font-weight:900;font-family:monospace;color:var(--accent)" id="finalDisp">0</div>
+    <button class="btn" id="restartBtn">다시 시작</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem">← 목록으로</a>
+  </div>
+</div>
+
+<div id="sensorBar">
+  <span class="label">밝기</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">—</span>
+  <button class="ctrl" id="connectBtn">🔌 연결</button>
+</div>
+
+<div id="settingPanel">
+  <h3>⚙️ 센서 · 입력 설정</h3>
+  <div class="testbox">
+    <div class="bigv" id="tBigV">—</div>
+    <div class="hint">현재 밝기 센서 값 (0~1023)</div>
+    <div style="height:10px;background:#1a1a3a;border-radius:5px;overflow:hidden;margin-top:8px;">
+      <div id="tBar" style="height:100%;background:var(--success);border-radius:5px;transition:width .05s;width:0%"></div>
+    </div>
+    <div class="jump-indicator" id="jumpInd">🌑 점프 발동!</div>
+  </div>
+  <div class="srow">
+    <label>입력 모드: <strong id="inputModeLabel">센서</strong></label>
+    <select id="inputModeSelect">
+      <option value="sensor">센서만 사용</option>
+      <option value="keyboard">키보드 Space</option>
+      <option value="mouse">마우스 / 터치</option>
+    </select>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:6px">기본 조작은 센서이며, 여기서만 다른 입력으로 전환됩니다.</div>
+  </div>
+  <div class="srow">
+    <label>점프 임계값: <strong id="thrLabel">300</strong></label>
+    <input type="range" id="thrSlider" min="0" max="1023" value="300">
+    <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);margin-top:2px">
+      <span>0 (어두움)</span><span>1023 (밝음)</span>
+    </div>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:6px">센서 값이 이 값보다 낮으면 점프합니다. (손으로 가려서 어두워졌을 때)</div>
+  </div>
+  <div class="srow">
+    <label>게임 속도: <strong id="speedLabel">보통</strong></label>
+    <input type="range" id="speedSlider" min="1" max="3" value="2" step="1">
+  </div>
+  <button class="btn" id="closeSett" style="width:100%">닫기</button>
+</div>
+
+<script src="js/serial.js"></script>
+<script>
+const canvas = document.getElementById('gc');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('gameWrap');
+function resize() { canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight; }
+resize(); window.addEventListener('resize', resize);
+
+const serial = new SerialManager();
+let sensorVal = 0;
+const cfg = { threshold: 300, speedLevel: 2, inputMode: 'sensor' };
+const INPUT_MODE_LABELS = {
+  sensor: '센서',
+  keyboard: '키보드',
+  mouse: '마우스',
+};
+const LB_KEY = 'brightjump_hi';
+function getHi() { return +localStorage.getItem(LB_KEY) || 0; }
+function setHi(s) { if (s > getHi()) localStorage.setItem(LB_KEY, s); }
+
+function syncInputModeUI() {
+  document.getElementById('inputModeSelect').value = cfg.inputMode;
+  document.getElementById('inputModeLabel').textContent = INPUT_MODE_LABELS[cfg.inputMode];
+}
+
+function setInputMode(mode) {
+  cfg.inputMode = INPUT_MODE_LABELS[mode] ? mode : 'sensor';
+  player.jumpPressed = false;
+  syncInputModeUI();
+}
+
+let state = 'menu';
+let score = 0, frame = 0;
+const GROUND_H = 60;
+let bgScroll = 0;
+let bgClouds = [];
+let obstacles = [];
+let prevBelowThreshold = false;
+
+const MAX_HP = 3;
+const INVINCIBLE_FRAMES = 90; // 피격 후 1.5초 무적
+
+const player = {
+  x: 60, y: 0,
+  w: 32, h: 36,
+  vy: 0,
+  grounded: false,
+  jumpPressed: false,
+  hp: MAX_HP,
+  invincible: 0,
+};
+
+function groundY() { return canvas.height - GROUND_H - player.h; }
+
+function init() {
+  score = 0; frame = 0; bgScroll = 0;
+  obstacles = [];
+  bgClouds = Array.from({length:6}, (_,i) => ({
+    x: i * 100, y: 20 + Math.random()*60, w: 60+Math.random()*40, h: 20+Math.random()*15, alpha: .2+Math.random()*.2
+  }));
+  player.y = groundY();
+  player.vy = 0;
+  player.grounded = true;
+  player.jumpPressed = false;
+  player.hp = MAX_HP;
+  player.invincible = 0;
+  prevBelowThreshold = false;
+  updateHpUI();
+}
+
+function update() {
+  if (state !== 'playing') return;
+  frame++;
+  score++;
+  const spd = [2.5, 3.5, 5][cfg.speedLevel - 1];
+
+  // 밝기가 임계값 아래로 떨어지는 순간(하강 엣지)에만 점프 — 센서를 가리면 어두워짐
+  const belowThreshold = cfg.inputMode === 'sensor' && sensorVal < cfg.threshold;
+  const brightEdge = belowThreshold && !prevBelowThreshold;
+  prevBelowThreshold = belowThreshold;
+
+  const shouldJump = brightEdge || player.jumpPressed;
+  if (shouldJump && player.grounded) {
+    player.vy = -13;
+    player.grounded = false;
+  }
+  player.jumpPressed = false;
+
+  // Physics
+  player.vy += 0.6;
+  player.y += player.vy;
+  const gy = groundY();
+  if (player.y >= gy) { player.y = gy; player.vy = 0; player.grounded = true; }
+
+  // Spawn obstacles
+  // 이전 장애물이 화면을 완전히 벗어난 뒤에만 다음이 나오도록 간격 보장
+  const clearFrames = Math.ceil((canvas.width + 30) / spd) + 30; // 현재 속도 기준 최소 간격
+  const interval = Math.max(clearFrames, 220 - Math.floor(frame / 600) * 5);
+  if (frame % interval === 0 && obstacles.length < 2) {
+    const h = 30 + Math.random() * 40;
+    obstacles.push({ x: canvas.width, y: canvas.height - GROUND_H - h, w: 24, h });
+  }
+  obstacles.forEach(o => o.x -= spd);
+  obstacles = obstacles.filter(o => o.x + o.w > -10);
+
+  // Clouds
+  bgClouds.forEach(c => c.x -= spd * .3);
+  bgClouds.forEach(c => { if (c.x + c.w < 0) { c.x = canvas.width + 20; c.y = 20 + Math.random()*60; } });
+
+  bgScroll = (bgScroll + spd) % canvas.width;
+
+  // 무적 카운트다운
+  if (player.invincible > 0) player.invincible--;
+
+  // Collision
+  if (player.invincible === 0) {
+    for (const o of obstacles) {
+      if (
+        player.x + 4 < o.x + o.w && player.x + player.w - 4 > o.x &&
+        player.y + 4 < o.y + o.h && player.y + player.h > o.y
+      ) {
+        player.hp--;
+        player.invincible = INVINCIBLE_FRAMES;
+        updateHpUI();
+        if (player.hp <= 0) { endGame(); return; }
+        break;
+      }
+    }
+  }
+
+  document.getElementById('scoreDisp').textContent = score;
+  document.getElementById('hiDisp').textContent = Math.max(score, getHi());
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Sky
+  const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  sky.addColorStop(0, '#0a0520');
+  sky.addColorStop(1, '#1a0a30');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Clouds
+  bgClouds.forEach(c => {
+    ctx.globalAlpha = c.alpha;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(c.x + c.w/2, c.y + c.h/2, c.w/2, c.h/2, 0, 0, Math.PI*2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // Ground
+  const grd = ctx.createLinearGradient(0, canvas.height - GROUND_H, 0, canvas.height);
+  grd.addColorStop(0, '#2a1a4a');
+  grd.addColorStop(1, '#1a0a2a');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, canvas.height - GROUND_H, canvas.width, GROUND_H);
+
+  // Ground line
+  ctx.strokeStyle = '#ff6b35';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#ff6b35';
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height - GROUND_H);
+  ctx.lineTo(canvas.width, canvas.height - GROUND_H);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Obstacles
+  obstacles.forEach(o => {
+    ctx.shadowColor = '#ff4444';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = '#cc2222';
+    ctx.fillRect(o.x, o.y, o.w, o.h);
+    ctx.fillStyle = '#ff4444';
+    ctx.fillRect(o.x, o.y, o.w, 4);
+    ctx.fillRect(o.x - 4, o.y - 6, o.w + 8, 8);
+    ctx.shadowBlur = 0;
+  });
+
+  // Player (runner)
+  if (state === 'playing' || state === 'gameover') {
+    const flicker = player.invincible > 0 && Math.floor(player.invincible / 5) % 2 === 0;
+    ctx.save();
+    ctx.globalAlpha = flicker ? 0.25 : 1;
+    ctx.translate(player.x + player.w/2, player.y + player.h/2);
+    // Body
+    ctx.shadowColor = player.invincible > 0 ? '#ffffff' : '#ff6b35';
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = player.invincible > 0 ? '#ffffff' : '#ff6b35';
+    ctx.fillRect(-player.w/2, -player.h/2, player.w, player.h);
+    // Face
+    ctx.fillStyle = '#ffaa66';
+    ctx.fillRect(-player.w/2+4, -player.h/2+4, player.w-8, player.h/2);
+    // Eyes
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, -player.h/2+8, 5, 5);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+  }
+
+  // Score
+  if (state === 'playing') {
+    ctx.font = 'bold 16px monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillText(`거리: ${score}`, 10, 24);
+  }
+}
+
+function loop() {
+  requestAnimationFrame(loop);
+  update();
+  draw();
+}
+loop();
+
+function updateHpUI() {
+  document.getElementById('hpDisp').innerHTML = Array.from({length: MAX_HP}, (_, i) =>
+    `<span style="font-size:.95rem;opacity:${i < player.hp ? 1 : 0.18}">❤️</span>`
+  ).join('');
+}
+
+function startGame() {
+  init();
+  state = 'playing';
+  document.getElementById('startPanel').classList.add('hidden');
+  document.getElementById('overPanel').classList.add('hidden');
+}
+function endGame() {
+  state = 'gameover';
+  setHi(score);
+  document.getElementById('finalDisp').textContent = `${score} 거리`;
+  document.getElementById('overPanel').classList.remove('hidden');
+  document.getElementById('hiDisp').textContent = getHi();
+}
+
+// Input fallback (space/click to jump)
+window.addEventListener('keydown', e => {
+  if (cfg.inputMode !== 'keyboard') return;
+  if (e.key === ' ') {
+    e.preventDefault();
+    player.jumpPressed = true;
+    if (state === 'menu' || state === 'gameover') startGame();
+  }
+});
+canvas.addEventListener('click', () => {
+  if (cfg.inputMode !== 'mouse') return;
+  player.jumpPressed = true;
+  if (state==='menu') startGame();
+  if (state==='gameover') startGame();
+});
+canvas.addEventListener('touchstart', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  e.preventDefault();
+  player.jumpPressed = true;
+  if (state === 'menu' || state === 'gameover') startGame();
+}, { passive: false });
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+
+// Serial
+serial.onData(v => {
+  sensorVal = v;
+  const pct = (v/1023)*100;
+  const active = v < cfg.threshold;
+  document.getElementById('sensorFill').style.width = pct+'%';
+  document.getElementById('sensorFill').style.background = active ? '#ff6b35' : '#00ff88';
+  document.getElementById('sensorVal').textContent = Math.round(v);
+  document.getElementById('tBigV').textContent = Math.round(v);
+  document.getElementById('tBar').style.width = pct+'%';
+  document.getElementById('tBar').style.background = active ? '#ff6b35' : '#00ff88';
+  document.getElementById('jumpInd').classList.toggle('show', active);
+});
+serial.onConnect(() => {
+  document.getElementById('connectBtn').textContent = '🔴 연결됨';
+  document.getElementById('connectBtn').classList.add('connected');
+});
+serial.onDisconnect(() => {
+  document.getElementById('connectBtn').textContent = '🔌 연결';
+  document.getElementById('connectBtn').classList.remove('connected');
+  sensorVal = 0;
+});
+
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) await serial.disconnect();
+  else try { await serial.connect(); } catch(e) { alert(e.message); }
+});
+
+// Settings
+document.getElementById('settBtn').addEventListener('click', () => document.getElementById('settingPanel').classList.toggle('open'));
+document.getElementById('closeSett').addEventListener('click', () => document.getElementById('settingPanel').classList.remove('open'));
+document.getElementById('thrSlider').addEventListener('input', e => {
+  cfg.threshold = +e.target.value;
+  document.getElementById('thrLabel').textContent = cfg.threshold;
+});
+document.getElementById('speedSlider').addEventListener('input', e => {
+  cfg.speedLevel = +e.target.value;
+  document.getElementById('speedLabel').textContent = ['느림','보통','빠름'][cfg.speedLevel-1];
+});
+document.getElementById('inputModeSelect').addEventListener('change', e => {
+  setInputMode(e.target.value);
+});
+
+document.getElementById('hiDisp').textContent = getHi();
+updateHpUI();
+syncInputModeUI();
+</script>
+</body>
+</html>
