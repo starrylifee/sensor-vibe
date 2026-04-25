@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>우주 점프 — EZMaker</title>
+<style>
+  :root{--bg:#000210;--panel:#0a0a1f;--border:#1a1a3a;--accent:#818cf8;--success:#00ff88;--muted:#64748b;--text:#e2e8f0;}
+  body.hc{--bg:#000;--panel:#111;--border:#fff;--text:#fff;--muted:#ddd;}
+  body.hc .overlay{background:rgba(0,0,0,.97);}
+  body.hc #settPanel{background:#111;border-color:#fff;}
+  body.hc .testbox{background:#1a1a1a;border-color:#fff;}
+  body.hc .srow select{background:#1a1a1a;border-color:#fff;color:#fff;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+    height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+  #topbar{width:100%;max-width:560px;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);gap:8px;flex-shrink:0;}
+  #topbar a{color:var(--muted);text-decoration:none;font-size:.8rem;}
+  #topbar a:hover{color:var(--accent);}
+  .stat{text-align:center;}
+  .stat .label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat .value{font-size:1.1rem;font-weight:700;color:var(--accent);font-family:monospace;}
+  #gameWrap{position:relative;flex:1;width:100%;max-width:560px;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+  #sensorBar{width:100%;max-width:560px;background:var(--panel);border-top:1px solid var(--border);
+    padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  #sensorBar .label{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  #sensorMeter{flex:1;height:8px;background:#1a1a3a;border-radius:4px;overflow:hidden;}
+  #sensorFill{height:100%;background:var(--accent);border-radius:4px;transition:width .05s,background .1s;width:0%;}
+  #sensorVal{font-size:.75rem;font-family:monospace;color:var(--accent);min-width:40px;text-align:right;}
+  button.ctrl{background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;
+    padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;}
+  button.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+  button.ctrl.connected{border-color:var(--success);color:var(--success);}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.88);z-index:10;flex-direction:column;gap:14px;padding:24px;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-size:1.5rem;font-weight:800;color:var(--accent);text-align:center;}
+  .overlay .sub{color:var(--muted);font-size:.83rem;text-align:center;line-height:1.75;}
+  .btn{background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 28px;
+    font-size:.95rem;font-weight:700;cursor:pointer;min-width:140px;}
+  #settPanel{position:absolute;top:0;right:0;bottom:0;width:min(300px,100%);background:var(--panel);
+    border-left:1px solid var(--border);z-index:20;padding:20px;overflow-y:auto;
+    transform:translateX(100%);transition:transform .3s;}
+  #settPanel.open{transform:translateX(0);}
+  #settPanel h3{color:var(--accent);margin-bottom:18px;font-size:1rem;}
+  .srow{margin-bottom:16px;}
+  .srow label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;}
+  .srow input[type=range]{width:100%;accent-color:var(--accent);}
+  .srow select{width:100%;background:#0a0a18;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;}
+  .testbox{background:#0a0a18;border:1px solid var(--border);border-radius:8px;padding:14px;
+    margin-bottom:16px;text-align:center;}
+  .testbox .bigv{font-size:2.5rem;font-weight:900;font-family:monospace;color:var(--accent);line-height:1;}
+  .testbox .hint{font-size:.72rem;color:var(--muted);margin-top:4px;}
+  .jump-ind{display:none;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;
+    font-size:.75rem;margin-top:8px;background:rgba(129,140,248,.15);
+    border:1px solid rgba(129,140,248,.4);color:var(--accent);}
+  .jump-ind.show{display:inline-flex;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div style="display:flex;gap:16px;align-items:center">
+    <div class="stat"><div class="label">점수</div><div class="value" id="scoreDisp">0</div></div>
+    <div class="stat"><div class="label">최고</div><div class="value" id="hiDisp">0</div></div>
+    <div class="stat">
+      <div class="label">체력</div>
+      <div id="hpDisp" style="display:flex;gap:2px;justify-content:center;margin-top:2px"></div>
+    </div>
+  </div>
+  <div style="display:flex;gap:4px">
+    <button class="ctrl" id="hcToggle" onclick="toggleHC()" title="고대비 모드">☀️</button>
+    <button class="ctrl" id="settBtn">⚙️</button>
+  </div>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+
+  <div class="overlay" id="startPanel">
+    <h2>🚀 우주 점프</h2>
+    <div class="sub">
+      밝기 센서를 손으로 <strong style="color:var(--accent)">가리면</strong> 로켓이 점프합니다!<br>
+      소행성을 피하며 우주를 달리세요.<br>
+      설정에서 키보드 · 터치 조작으로도 변경 가능합니다.
+    </div>
+    <button class="btn" id="startBtn">시작</button>
+  </div>
+
+  <div class="overlay hidden" id="overPanel">
+    <h2>💥 게임 오버</h2>
+    <div style="font-size:2.2rem;font-weight:900;font-family:monospace;color:var(--accent)" id="finalDisp">0</div>
+    <button class="btn" id="restartBtn">다시 시작</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem;margin-top:4px">← 목록으로</a>
+  </div>
+</div>
+
+<div id="sensorBar">
+  <span class="label">밝기</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">—</span>
+  <button class="ctrl" id="connectBtn">🔌 연결</button>
+</div>
+
+<div id="settPanel">
+  <h3>⚙️ 센서 · 입력 설정</h3>
+  <div class="testbox">
+    <div class="bigv" id="tBigV">—</div>
+    <div class="hint">현재 밝기 센서 값 (0~1023)</div>
+    <div style="height:10px;background:#1a1a3a;border-radius:5px;overflow:hidden;margin-top:8px">
+      <div id="tBar" style="height:100%;background:var(--accent);border-radius:5px;transition:width .05s;width:0%"></div>
+    </div>
+    <div class="jump-ind" id="jumpInd">🚀 점프!</div>
+  </div>
+  <div class="srow">
+    <label>입력 모드: <strong id="inputModeLabel">센서</strong></label>
+    <select id="inputModeSelect">
+      <option value="sensor">센서만 사용</option>
+      <option value="keyboard">키보드 Space</option>
+      <option value="mouse">마우스 / 터치</option>
+    </select>
+  </div>
+  <div class="srow">
+    <label>점프 임계값: <strong id="thrLabel">300</strong></label>
+    <input type="range" id="thrSlider" min="0" max="1023" value="300">
+    <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);margin-top:2px">
+      <span>0 (어두움)</span><span>1023 (밝음)</span>
+    </div>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:6px">센서 값이 이 값보다 낮으면 점프합니다.</div>
+  </div>
+  <div class="srow">
+    <label>게임 속도: <strong id="speedLabel">보통</strong></label>
+    <input type="range" id="speedSlider" min="1" max="3" value="2" step="1">
+  </div>
+  <button class="btn" id="closeSett" style="width:100%">닫기</button>
+</div>
+
+<script src="js/serial.js"></script>
+<script>
+// ── 고대비 모드 ──────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  const btn = document.getElementById('hcToggle');
+  if (btn) btn.textContent = hcMode ? '🌙' : '☀️';
+}
+function toggleHC() {
+  hcMode = !hcMode;
+  localStorage.setItem('hc_mode', hcMode ? '1' : '0');
+  applyHC();
+}
+applyHC();
+
+// ── Canvas ───────────────────────────────────
+const canvas = document.getElementById('gc');
+const ctx    = canvas.getContext('2d');
+const wrap   = document.getElementById('gameWrap');
+function resize() { canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight; }
+resize(); window.addEventListener('resize', resize);
+
+// ── Serial ───────────────────────────────────
+const serial = new SerialManager();
+let sensorVal = 0;
+serial.onData(v => {
+  sensorVal = v;
+  const pct = (v / 1023) * 100;
+  const active = v < cfg.threshold;
+  document.getElementById('sensorFill').style.width    = pct + '%';
+  document.getElementById('sensorFill').style.background = active ? '#818cf8' : '#00ff88';
+  document.getElementById('sensorVal').textContent     = Math.round(v);
+  document.getElementById('tBigV').textContent         = Math.round(v);
+  document.getElementById('tBar').style.width          = pct + '%';
+  document.getElementById('jumpInd').classList.toggle('show', active);
+});
+serial.onConnect(() => {
+  document.getElementById('connectBtn').textContent = '🔴 연결됨';
+  document.getElementById('connectBtn').classList.add('connected');
+});
+serial.onDisconnect(() => {
+  document.getElementById('connectBtn').textContent = '🔌 연결';
+  document.getElementById('connectBtn').classList.remove('connected');
+  sensorVal = 0;
+});
+
+// ── Config ───────────────────────────────────
+const cfg = { threshold: 300, speedLevel: 2, inputMode: 'sensor' };
+const INPUT_MODE_LABELS = { sensor: '센서', keyboard: '키보드', mouse: '마우스' };
+
+function syncInputModeUI() {
+  document.getElementById('inputModeSelect').value = cfg.inputMode;
+  document.getElementById('inputModeLabel').textContent = INPUT_MODE_LABELS[cfg.inputMode];
+}
+function setInputMode(mode) {
+  cfg.inputMode = INPUT_MODE_LABELS[mode] ? mode : 'sensor';
+  player.jumpPressed = false;
+  syncInputModeUI();
+}
+
+const LB_KEY = 'spacejump_hi';
+function getHi() { return +localStorage.getItem(LB_KEY) || 0; }
+function setHi(s) { if (s > getHi()) localStorage.setItem(LB_KEY, s); }
+
+// ── State ────────────────────────────────────
+let state = 'menu';
+let score = 0, frame = 0;
+const GROUND_H = 64;
+let obstacles = [], particles = [];
+let prevBelowThreshold = false;
+
+const MAX_HP = 3;
+const INVINCIBLE_FRAMES = 90;
+
+// ── Stars (3 parallax layers) ────────────────
+let starLayers = [[], [], []];
+
+function initStars() {
+  const defs = [
+    { count: 60, rMin: 0.2, rMax: 0.9, spdMult: 0.3, aMin: 0.2, aMax: 0.7 },
+    { count: 35, rMin: 0.5, rMax: 1.4, spdMult: 0.7, aMin: 0.3, aMax: 0.8 },
+    { count: 15, rMin: 1.0, rMax: 2.4, spdMult: 1.4, aMin: 0.5, aMax: 1.0 },
+  ];
+  starLayers = defs.map(d =>
+    Array.from({ length: d.count }, () => ({
+      x:       Math.random() * canvas.width,
+      y:       Math.random() * (canvas.height - GROUND_H),
+      r:       d.rMin + Math.random() * (d.rMax - d.rMin),
+      spd:     d.spdMult,
+      alpha:   d.aMin + Math.random() * (d.aMax - d.aMin),
+      twinkle: Math.random() * Math.PI * 2,
+    }))
+  );
+}
+initStars();
+
+// ── Player (Rocket) ──────────────────────────
+const player = {
+  x: 70, y: 0,
+  w: 30, h: 44,
+  vy: 0, grounded: false,
+  jumpPressed: false,
+  hp: MAX_HP, invincible: 0,
+};
+
+function groundY() { return canvas.height - GROUND_H - player.h; }
+
+// ── Game Init ────────────────────────────────
+function init() {
+  score = 0; frame = 0;
+  obstacles = []; particles = [];
+  player.y = groundY();
+  player.vy = 0; player.grounded = true;
+  player.jumpPressed = false;
+  player.hp = MAX_HP; player.invincible = 0;
+  prevBelowThreshold = false;
+  initStars();
+  updateHpUI();
+}
+
+// ── Update ───────────────────────────────────
+function update() {
+  if (state !== 'playing') return;
+  frame++; score++;
+  const spd = [2.5, 3.5, 5][cfg.speedLevel - 1];
+
+  // Scroll stars
+  starLayers.forEach(layer => {
+    layer.forEach(s => {
+      s.x -= s.spd * (spd / 3.5);
+      s.twinkle += 0.04;
+      if (s.x < -3) { s.x = canvas.width + 3; s.y = Math.random() * (canvas.height - GROUND_H); }
+    });
+  });
+
+  // Jump: sensor falling edge (goes dark = cover)
+  const belowThreshold = cfg.inputMode === 'sensor' && sensorVal < cfg.threshold;
+  const jumpEdge = belowThreshold && !prevBelowThreshold;
+  prevBelowThreshold = belowThreshold;
+
+  const shouldJump = jumpEdge || player.jumpPressed;
+  if (shouldJump && player.grounded) {
+    player.vy = -13;
+    player.grounded = false;
+  }
+  player.jumpPressed = false;
+
+  // Physics (slightly lower gravity = spacey feel)
+  player.vy += 0.46;
+  player.y  += player.vy;
+  const gy = groundY();
+  if (player.y >= gy) { player.y = gy; player.vy = 0; player.grounded = true; }
+
+  // Spawn asteroids
+  const clearFrames = Math.ceil((canvas.width + 60) / spd) + 40;
+  const interval = Math.max(clearFrames, 210 - Math.floor(frame / 600) * 5);
+  if (frame % interval === 0 && obstacles.length < 3) {
+    const h = 30 + Math.random() * 48;
+    const w = h * (0.65 + Math.random() * 0.7);
+    obstacles.push({
+      x: canvas.width, y: canvas.height - GROUND_H - h,
+      w, h, seed: Math.floor(Math.random() * 100),
+    });
+  }
+  obstacles.forEach(o => { o.x -= spd; });
+  obstacles = obstacles.filter(o => o.x + o.w > -10);
+
+  // Invincibility
+  if (player.invincible > 0) player.invincible--;
+
+  // Collision
+  if (player.invincible === 0) {
+    for (const o of obstacles) {
+      if (
+        player.x + 6 < o.x + o.w && player.x + player.w - 6 > o.x &&
+        player.y + 8 < o.y + o.h && player.y + player.h - 4 > o.y
+      ) {
+        player.hp--;
+        player.invincible = INVINCIBLE_FRAMES;
+        spawnParticles(player.x + player.w / 2, player.y + player.h / 2);
+        updateHpUI();
+        if (player.hp <= 0) { endGame(); return; }
+        break;
+      }
+    }
+  }
+
+  // Particles
+  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.alpha -= 1 / p.life; p.life--; });
+  particles = particles.filter(p => p.life > 0);
+
+  document.getElementById('scoreDisp').textContent = score;
+  document.getElementById('hiDisp').textContent    = Math.max(score, getHi());
+}
+
+function spawnParticles(cx, cy) {
+  const colors = ['#818cf8', '#c4b5fd', '#ff6b35', '#ffd700', '#7dd3fc'];
+  for (let i = 0; i < 14; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const spd = Math.random() * 4 + 1;
+    particles.push({
+      x: cx, y: cy,
+      vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 2,
+      alpha: 1, r: Math.random() * 4 + 2, life: 25 + Math.random() * 15,
+      color: colors[Math.floor(Math.random() * colors.length)],
+    });
+  }
+}
+
+// ── Draw ──────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Space background
+  if (hcMode) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  } else {
+    const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    sky.addColorStop(0,   '#000212');
+    sky.addColorStop(0.6, '#050528');
+    sky.addColorStop(1,   '#0a0535');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Nebula 1 (purple)
+    const nx = canvas.width * 0.3;
+    const n1 = ctx.createRadialGradient(nx, canvas.height * 0.25, 0, nx, canvas.height * 0.25, canvas.width * 0.55);
+    n1.addColorStop(0, 'rgba(88,28,135,0.13)');
+    n1.addColorStop(1, 'rgba(88,28,135,0)');
+    ctx.fillStyle = n1; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Nebula 2 (blue)
+    const nx2 = canvas.width * 0.78;
+    const n2 = ctx.createRadialGradient(nx2, canvas.height * 0.55, 0, nx2, canvas.height * 0.55, canvas.width * 0.45);
+    n2.addColorStop(0, 'rgba(14,165,233,0.09)');
+    n2.addColorStop(1, 'rgba(14,165,233,0)');
+    ctx.fillStyle = n2; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Stars (twinkling parallax)
+  if (!hcMode) {
+    starLayers.forEach(layer => {
+      layer.forEach(s => {
+        ctx.globalAlpha = s.alpha * (0.5 + 0.5 * Math.sin(s.twinkle));
+        ctx.fillStyle   = '#ffffff';
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+      });
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  if (state === 'menu') return;
+
+  // Ground
+  drawGround();
+
+  // Asteroids
+  obstacles.forEach(o => drawAsteroid(o));
+
+  // Rocket (flicker when invincible)
+  const flicker = player.invincible > 0 && Math.floor(player.invincible / 5) % 2 === 0;
+  if (!flicker) drawRocket();
+
+  // Particles
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha  = Math.max(0, p.alpha);
+    ctx.shadowColor  = p.color; ctx.shadowBlur = 8;
+    ctx.fillStyle    = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  });
+  ctx.globalAlpha = 1;
+
+  // Score overlay
+  if (state === 'playing') {
+    ctx.font      = 'bold 13px monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillText(`거리: ${score}`, 10, 22);
+  }
+}
+
+function drawGround() {
+  const gy = canvas.height - GROUND_H;
+  const grd = ctx.createLinearGradient(0, gy, 0, canvas.height);
+  if (hcMode) { grd.addColorStop(0, '#222'); grd.addColorStop(1, '#000'); }
+  else        { grd.addColorStop(0, '#1a1040'); grd.addColorStop(1, '#080620'); }
+  ctx.fillStyle = grd; ctx.fillRect(0, gy, canvas.width, GROUND_H);
+
+  // Glowing line
+  ctx.strokeStyle  = hcMode ? '#fff' : '#818cf8';
+  ctx.lineWidth    = 2;
+  ctx.shadowColor  = hcMode ? '#fff' : '#818cf8';
+  ctx.shadowBlur   = hcMode ? 0 : 10;
+  ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(canvas.width, gy); ctx.stroke();
+  ctx.shadowBlur   = 0;
+
+  // Grid pattern
+  if (!hcMode) {
+    ctx.strokeStyle = 'rgba(129,140,248,0.12)';
+    ctx.lineWidth   = 1;
+    for (let x = 0; x < canvas.width; x += 44) {
+      ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x, canvas.height); ctx.stroke();
+    }
+    for (let y = gy + 20; y < canvas.height; y += 20) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    }
+  }
+}
+
+function drawRocket() {
+  const { x, y, w, h } = player;
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+
+  // Animated flame
+  const fl = 9 + Math.random() * 8;
+  ctx.shadowColor = '#ff6b35'; ctx.shadowBlur = 16;
+  ctx.fillStyle = '#ff6b35';
+  ctx.beginPath(); ctx.moveTo(-w*0.2, h*0.5); ctx.lineTo(w*0.2, h*0.5); ctx.lineTo(0, h*0.5+fl); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ffd700';
+  ctx.beginPath(); ctx.moveTo(-w*0.1, h*0.5); ctx.lineTo(w*0.1, h*0.5); ctx.lineTo(0, h*0.5+fl*0.55); ctx.closePath(); ctx.fill();
+
+  // Wings
+  ctx.shadowColor = '#6d28d9'; ctx.shadowBlur = 6;
+  ctx.fillStyle = '#6d28d9';
+  ctx.beginPath(); ctx.moveTo(-w*0.3, h*0.18); ctx.lineTo(-w*0.54, h*0.48); ctx.lineTo(-w*0.12, h*0.34); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(w*0.3, h*0.18); ctx.lineTo(w*0.54, h*0.48); ctx.lineTo(w*0.12, h*0.34); ctx.closePath(); ctx.fill();
+
+  // Body
+  ctx.shadowColor = '#818cf8'; ctx.shadowBlur = 14;
+  ctx.fillStyle = '#c4b5fd';
+  ctx.beginPath(); ctx.roundRect(-w*0.28, -h*0.3, w*0.56, h*0.62, 6); ctx.fill();
+
+  // Nose
+  ctx.fillStyle = '#818cf8';
+  ctx.beginPath(); ctx.moveTo(0, -h*0.5); ctx.lineTo(-w*0.28, -h*0.28); ctx.lineTo(w*0.28, -h*0.28); ctx.closePath(); ctx.fill();
+
+  // Window
+  ctx.shadowColor = '#7dd3fc'; ctx.shadowBlur = 10;
+  ctx.fillStyle = '#7dd3fc';
+  ctx.beginPath(); ctx.arc(0, -h*0.06, w*0.16, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.beginPath(); ctx.arc(-w*0.05, -h*0.1, w*0.07, 0, Math.PI*2); ctx.fill();
+
+  ctx.restore();
+  ctx.shadowBlur = 0;
+}
+
+function drawAsteroid(o) {
+  ctx.save();
+  ctx.translate(o.x + o.w / 2, o.y + o.h / 2);
+  const r = Math.min(o.w, o.h) / 2;
+  ctx.shadowColor = '#9ca3af'; ctx.shadowBlur = 8;
+  ctx.fillStyle = '#6b7280';
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const angle  = (i / 8) * Math.PI * 2;
+    const jitter = 0.6 + (((o.seed * 7 + i * 13) % 10) / 10) * 0.4;
+    const px = Math.cos(angle) * r * jitter;
+    const py = Math.sin(angle) * r * jitter;
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath(); ctx.fill();
+  // Craters
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#4b5563';
+  ctx.beginPath(); ctx.arc(-r*0.28, -r*0.22, r*0.22, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#374151';
+  ctx.beginPath(); ctx.arc(r*0.22, r*0.18, r*0.14, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+// ── Game Loop ─────────────────────────────────
+function loop() { requestAnimationFrame(loop); update(); draw(); }
+loop();
+
+// ── HUD ───────────────────────────────────────
+function updateHpUI() {
+  document.getElementById('hpDisp').innerHTML = Array.from({ length: MAX_HP }, (_, i) =>
+    `<span style="font-size:.95rem;opacity:${i < player.hp ? 1 : 0.18}">🚀</span>`
+  ).join('');
+}
+
+// ── Game Flow ─────────────────────────────────
+function startGame() {
+  init(); state = 'playing';
+  document.getElementById('startPanel').classList.add('hidden');
+  document.getElementById('overPanel').classList.add('hidden');
+}
+function endGame() {
+  state = 'gameover'; setHi(score);
+  document.getElementById('finalDisp').textContent = `${score} 거리`;
+  document.getElementById('overPanel').classList.remove('hidden');
+  document.getElementById('hiDisp').textContent    = getHi();
+}
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+
+// ── Input ─────────────────────────────────────
+window.addEventListener('keydown', e => {
+  if (cfg.inputMode !== 'keyboard') return;
+  if (e.key === ' ') { e.preventDefault(); player.jumpPressed = true; if (state !== 'playing') startGame(); }
+});
+canvas.addEventListener('click', () => {
+  if (cfg.inputMode !== 'mouse') return;
+  player.jumpPressed = true; if (state !== 'playing') startGame();
+});
+canvas.addEventListener('touchstart', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  e.preventDefault(); player.jumpPressed = true; if (state !== 'playing') startGame();
+}, { passive: false });
+
+// ── Serial ────────────────────────────────────
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) await serial.disconnect();
+  else try { await serial.connect(); } catch (e) { alert(e.message); }
+});
+
+// ── Settings ──────────────────────────────────
+document.getElementById('settBtn').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.toggle('open'));
+document.getElementById('closeSett').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.remove('open'));
+document.getElementById('thrSlider').addEventListener('input', e => {
+  cfg.threshold = +e.target.value;
+  document.getElementById('thrLabel').textContent = cfg.threshold;
+});
+document.getElementById('speedSlider').addEventListener('input', e => {
+  cfg.speedLevel = +e.target.value;
+  document.getElementById('speedLabel').textContent = ['느림','보통','빠름'][cfg.speedLevel - 1];
+});
+document.getElementById('inputModeSelect').addEventListener('change', e => { setInputMode(e.target.value); });
+
+document.getElementById('hiDisp').textContent = getHi();
+updateHpUI();
+syncInputModeUI();
+</script>
+</body>
+</html>

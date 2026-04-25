@@ -377,6 +377,20 @@
 
   <!-- 학생 작품 카드 그리드 (내일 여기에 추가) -->
   <div class="grid" id="student-grid">
+  <a href="space-jump.html" class="card" style="--c:#818cf8">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">🚀</span>
+      <div class="card-title">우주 점프</div>
+      <div class="card-desc">밝기 센서를 가렸다 떼면 로켓이 점프! 소행성을 피하며 우주를 달리세요. 반짝이는 별과 성운 배경.</div>
+      <span class="sensor-badge">밝기 센서 (아날로그)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-space">—</span></div>
+      <button class="play-btn" style="background:#818cf8;box-shadow:0 0 12px #818cf8">플레이 →</button>
+    </div>
+  </a>
+
   <a href="paint-field.html" class="card" style="--c:#f59e0b">
     <div class="card-top"></div>
     <div class="card-body">
@@ -492,6 +506,8 @@ document.getElementById('hi-ultra').textContent =
   fmt(localStorage.getItem('ultrabreak_hi'));
 document.getElementById('hi-paint').textContent =
   fmt(localStorage.getItem('paintfield_hi'));
+document.getElementById('hi-space').textContent =
+  fmt(localStorage.getItem('spacejump_hi'));
 
 // ── 브라우저 체크 ────────────────────────────
 if (!('serial' in navigator)) {
