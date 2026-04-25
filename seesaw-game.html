@@ -129,12 +129,12 @@
   </div>
   <div class="srow">
     <label>감도: <strong id="sensLabel">보통</strong></label>
-    <input type="range" id="sensSlider" min="1" max="3" value="2" step="1">
+    <input type="range" id="sensSlider" min="1" max="3" value="1" step="1">
     <div style="font-size:.72rem;color:var(--muted);margin-top:4px">높을수록 작은 움직임에도 크게 기웁니다.</div>
   </div>
   <div class="srow">
     <label>외부 방해: <strong id="gustLabel">보통</strong></label>
-    <input type="range" id="gustSlider" min="1" max="3" value="2" step="1">
+    <input type="range" id="gustSlider" min="1" max="3" value="1" step="1">
     <div style="font-size:.72rem;color:var(--muted);margin-top:4px">높을수록 공이 자주 흔들립니다.</div>
   </div>
   <button class="btn" id="closeSett" style="width:100%">닫기</button>
@@ -188,11 +188,11 @@ serial.onDisconnect(() => {
 // ── Config ───────────────────────────────────
 const cfg = {
   midpoint:   512,  // balance sensor value
-  sensitivity: 2,   // 1=low, 2=mid, 3=high
-  gustLevel:   2,   // 1=easy, 2=normal, 3=hard
+  sensitivity: 1,   // 1=low, 2=mid, 3=high
+  gustLevel:   1,   // 1=easy, 2=normal, 3=hard
   inputMode:  'sensor',
 };
-const SENS_RANGE = [600, 380, 220]; // deviation → full tilt
+const SENS_RANGE = [700, 450, 260]; // deviation → full tilt
 const INPUT_MODE_LABELS = { sensor: '센서', keyboard: '키보드', mouse: '마우스' };
 
 function syncInputModeUI() {
@@ -209,7 +209,7 @@ let state = 'menu';
 let survived = 0; // frames
 
 // ── Seesaw physics ───────────────────────────
-const MAX_ANGLE = Math.PI / 5.5; // ~32 degrees max tilt
+const MAX_ANGLE = Math.PI / 10; // ~18 degrees max tilt (easy)
 let seesawAngle = 0;
 let ballPos     = 0;   // -1 (left end) ~ 0 (center) ~ +1 (right end)
 let ballVel     = 0;
@@ -267,26 +267,26 @@ function update() {
     targetAngle = (mousePosX * 2 - 1) * MAX_ANGLE;
   }
 
-  // Seesaw lazy follow (inertia)
-  const responsiveness = 0.1;
+  // Seesaw lazy follow (inertia) — slow follow suits slow sensor input
+  const responsiveness = 0.06;
   seesawAngle += (targetAngle - seesawAngle) * responsiveness;
 
   // Gust (random perturbation, difficulty-based)
   gustTimer--;
   if (gustTimer <= 0) {
     const d = cfg.gustLevel;
-    const mag = [0.0015, 0.0032, 0.0060][d - 1];
+    const mag = [0.0008, 0.0018, 0.0040][d - 1];
     gustForce = (Math.random() - 0.5) * mag * 2;
-    const minInt = [200, 120, 60][d - 1];
-    const maxInt = [360, 220, 130][d - 1];
+    const minInt = [300, 180, 90][d - 1];
+    const maxInt = [500, 320, 180][d - 1];
     gustTimer = minInt + Math.floor(Math.random() * (maxInt - minInt));
   }
   gustForce *= 0.96; // decay
 
-  // Ball physics
-  const gravity = Math.sin(seesawAngle) * 0.011;
+  // Ball physics — slow gravity, high friction for easy play
+  const gravity = Math.sin(seesawAngle) * 0.005;
   ballVel += gravity + gustForce;
-  ballVel *= 0.984;  // friction
+  ballVel *= 0.970;  // friction (strong — ball stops quickly)
   ballPos += ballVel;
 
   // End condition
