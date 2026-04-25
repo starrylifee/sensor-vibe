@@ -405,6 +405,20 @@
     </div>
   </a>
 
+  <a href="seesaw-game.html" class="card" style="--c:#10b981">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">⚖️</span>
+      <div class="card-title">시소 균형</div>
+      <div class="card-desc">밝기 센서를 가리면 시소가 한쪽으로 기울어요! 공이 떨어지지 않도록 균형을 잡으며 최대한 오래 버티세요.</div>
+      <span class="sensor-badge">밝기 센서 (아날로그)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-seesaw">—</span></div>
+      <button class="play-btn" style="background:#10b981;box-shadow:0 0 12px #10b981">플레이 →</button>
+    </div>
+  </a>
+
     <!-- 예시: 아래 카드 복사해서 학생 작품 추가
     <a href="학생파일.html" class="card" style="--c:#a855f7">
       <div class="card-top"></div>
@@ -508,6 +522,8 @@ document.getElementById('hi-paint').textContent =
   fmt(localStorage.getItem('paintfield_hi'));
 document.getElementById('hi-space').textContent =
   fmt(localStorage.getItem('spacejump_hi'));
+document.getElementById('hi-seesaw').textContent =
+  fmt(localStorage.getItem('seesaw_hi'));
 
 // ── 브라우저 체크 ────────────────────────────
 if (!('serial' in navigator)) {

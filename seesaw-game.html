@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시소 균형 — EZMaker</title>
+<style>
+  :root{--bg:#030a05;--panel:#0a1a0d;--border:#1a3a1d;--accent:#10b981;--danger:#ef4444;--warn:#f59e0b;--muted:#64748b;--text:#e2e8f0;}
+  body.hc{--bg:#000;--panel:#111;--border:#fff;--text:#fff;--muted:#ddd;}
+  body.hc .overlay{background:rgba(0,0,0,.97);}
+  body.hc #settPanel{background:#111;border-color:#fff;}
+  body.hc .testbox{background:#1a1a1a;border-color:#fff;}
+  body.hc .srow select{background:#1a1a1a;border-color:#fff;color:#fff;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+    height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+  #topbar{width:100%;max-width:560px;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);gap:8px;flex-shrink:0;}
+  #topbar a{color:var(--muted);text-decoration:none;font-size:.8rem;}
+  #topbar a:hover{color:var(--accent);}
+  .stat{text-align:center;}
+  .stat .label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat .value{font-size:1.1rem;font-weight:700;color:var(--accent);font-family:monospace;}
+  #gameWrap{position:relative;flex:1;width:100%;max-width:560px;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+  #sensorBar{width:100%;max-width:560px;background:var(--panel);border-top:1px solid var(--border);
+    padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  #sensorBar .label{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  #sensorMeter{flex:1;height:8px;background:#1a3a1d;border-radius:4px;overflow:hidden;}
+  #sensorFill{height:100%;background:var(--accent);border-radius:4px;transition:width .05s;width:50%;}
+  #sensorVal{font-size:.75rem;font-family:monospace;color:var(--accent);min-width:40px;text-align:right;}
+  button.ctrl{background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;
+    padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;}
+  button.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+  button.ctrl.connected{border-color:var(--accent);color:var(--accent);}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.88);z-index:10;flex-direction:column;gap:14px;padding:28px;text-align:center;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-size:1.5rem;font-weight:800;color:var(--accent);}
+  .overlay .sub{color:var(--muted);font-size:.83rem;line-height:1.8;}
+  .btn{background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 28px;
+    font-size:.95rem;font-weight:700;cursor:pointer;min-width:140px;}
+  #settPanel{position:absolute;top:0;right:0;bottom:0;width:min(300px,100%);background:var(--panel);
+    border-left:1px solid var(--border);z-index:20;padding:20px;overflow-y:auto;
+    transform:translateX(100%);transition:transform .3s;}
+  #settPanel.open{transform:translateX(0);}
+  #settPanel h3{color:var(--accent);margin-bottom:18px;font-size:1rem;}
+  .srow{margin-bottom:16px;}
+  .srow label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;}
+  .srow input[type=range]{width:100%;accent-color:var(--accent);}
+  .srow select{width:100%;background:#0a1208;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;}
+  .testbox{background:#0a1208;border:1px solid var(--border);border-radius:8px;padding:14px;
+    margin-bottom:16px;text-align:center;}
+  .testbox .bigv{font-size:2.5rem;font-weight:900;font-family:monospace;color:var(--accent);line-height:1;}
+  .testbox .hint{font-size:.72rem;color:var(--muted);margin-top:4px;}
+  .calib-btn{width:100%;margin-top:8px;background:none;border:1px solid var(--accent);
+    color:var(--accent);border-radius:6px;padding:6px;font-size:.75rem;cursor:pointer;}
+  .calib-btn:hover{background:rgba(16,185,129,.15);}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div style="display:flex;gap:16px;align-items:center">
+    <div class="stat"><div class="label">생존 시간</div><div class="value" id="scoreDisp">0s</div></div>
+    <div class="stat"><div class="label">최고</div><div class="value" id="hiDisp">0s</div></div>
+    <div class="stat"><div class="label">균형</div><div class="value" id="balDisp">⚖️</div></div>
+  </div>
+  <div style="display:flex;gap:4px">
+    <button class="ctrl" id="hcToggle" onclick="toggleHC()" title="고대비 모드">☀️</button>
+    <button class="ctrl" id="settBtn">⚙️</button>
+  </div>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+
+  <div class="overlay" id="startPanel">
+    <h2>⚖️ 시소 균형</h2>
+    <div class="sub">
+      밝기 센서를 손으로 조절해 시소를 균형 잡으세요!<br>
+      <strong style="color:var(--accent)">센서를 가리면</strong> 시소가 왼쪽으로,<br>
+      <strong style="color:#fbbf24">손을 떼면</strong> 오른쪽으로 기웁니다.<br>
+      반 정도 가려서 공을 중앙에 유지하세요.<br><br>
+      <span style="font-size:.75rem;color:#64748b">설정에서 중앙값 조정 및 키보드/마우스 모드 전환 가능</span>
+    </div>
+    <button class="btn" id="startBtn">시작</button>
+  </div>
+
+  <div class="overlay hidden" id="overPanel">
+    <h2>💧 추락!</h2>
+    <div style="font-size:2.4rem;font-weight:900;font-family:monospace;color:var(--accent)" id="finalDisp">0s</div>
+    <div style="font-size:.88rem;color:var(--muted)" id="hiMsg"></div>
+    <button class="btn" id="restartBtn">다시 도전</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem;margin-top:4px">← 목록으로</a>
+  </div>
+</div>
+
+<div id="sensorBar">
+  <span class="label">밝기</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">—</span>
+  <button class="ctrl" id="connectBtn">🔌 연결</button>
+</div>
+
+<div id="settPanel">
+  <h3>⚙️ 센서 · 입력 설정</h3>
+  <div class="testbox">
+    <div class="bigv" id="tBigV">—</div>
+    <div class="hint">현재 밝기 센서 값 (0~1023)</div>
+    <div style="height:10px;background:#1a3a1d;border-radius:5px;overflow:hidden;margin-top:8px">
+      <div id="tBar" style="height:100%;background:var(--accent);border-radius:5px;transition:width .05s;width:50%"></div>
+    </div>
+    <button class="calib-btn" id="calibBtn">📐 현재 값을 중앙으로 설정</button>
+  </div>
+  <div class="srow">
+    <label>입력 모드: <strong id="inputModeLabel">센서</strong></label>
+    <select id="inputModeSelect">
+      <option value="sensor">밝기 센서</option>
+      <option value="keyboard">키보드 ← →</option>
+      <option value="mouse">마우스 X축</option>
+    </select>
+  </div>
+  <div class="srow">
+    <label>센서 중앙값: <strong id="midLabel">512</strong></label>
+    <input type="range" id="midSlider" min="0" max="1023" value="512">
+    <div style="font-size:.72rem;color:var(--muted);margin-top:4px">이 값에서 시소가 수평을 유지합니다.</div>
+  </div>
+  <div class="srow">
+    <label>감도: <strong id="sensLabel">보통</strong></label>
+    <input type="range" id="sensSlider" min="1" max="3" value="2" step="1">
+    <div style="font-size:.72rem;color:var(--muted);margin-top:4px">높을수록 작은 움직임에도 크게 기웁니다.</div>
+  </div>
+  <div class="srow">
+    <label>외부 방해: <strong id="gustLabel">보통</strong></label>
+    <input type="range" id="gustSlider" min="1" max="3" value="2" step="1">
+    <div style="font-size:.72rem;color:var(--muted);margin-top:4px">높을수록 공이 자주 흔들립니다.</div>
+  </div>
+  <button class="btn" id="closeSett" style="width:100%">닫기</button>
+</div>
+
+<script src="js/serial.js"></script>
+<script>
+// ── 고대비 모드 ──────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  const btn = document.getElementById('hcToggle');
+  if (btn) btn.textContent = hcMode ? '🌙' : '☀️';
+}
+function toggleHC() {
+  hcMode = !hcMode;
+  localStorage.setItem('hc_mode', hcMode ? '1' : '0');
+  applyHC();
+}
+applyHC();
+
+// ── Canvas ───────────────────────────────────
+const canvas = document.getElementById('gc');
+const ctx    = canvas.getContext('2d');
+const wrap   = document.getElementById('gameWrap');
+function resize() { canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight; }
+resize(); window.addEventListener('resize', resize);
+
+// ── Serial ──────────────────────────────���────
+const serial = new SerialManager();
+let sensorVal = 512; // 기본 중앙값 — 미연결 시에도 수평 유지
+
+serial.onData(v => {
+  sensorVal = v;
+  const pct = (v / 1023) * 100;
+  document.getElementById('sensorFill').style.width = pct + '%';
+  document.getElementById('sensorVal').textContent  = Math.round(v);
+  document.getElementById('tBigV').textContent      = Math.round(v);
+  document.getElementById('tBar').style.width       = pct + '%';
+});
+serial.onConnect(() => {
+  document.getElementById('connectBtn').textContent = '🔴 연결됨';
+  document.getElementById('connectBtn').classList.add('connected');
+});
+serial.onDisconnect(() => {
+  document.getElementById('connectBtn').textContent = '🔌 연결';
+  document.getElementById('connectBtn').classList.remove('connected');
+  sensorVal = 512;
+});
+
+// ── Config ───────────────────────────────────
+const cfg = {
+  midpoint:   512,  // balance sensor value
+  sensitivity: 2,   // 1=low, 2=mid, 3=high
+  gustLevel:   2,   // 1=easy, 2=normal, 3=hard
+  inputMode:  'sensor',
+};
+const SENS_RANGE = [600, 380, 220]; // deviation → full tilt
+const INPUT_MODE_LABELS = { sensor: '센서', keyboard: '키보드', mouse: '마우스' };
+
+function syncInputModeUI() {
+  document.getElementById('inputModeSelect').value = cfg.inputMode;
+  document.getElementById('inputModeLabel').textContent = INPUT_MODE_LABELS[cfg.inputMode];
+}
+
+const LB_KEY = 'seesaw_hi';
+function getHi() { return +localStorage.getItem(LB_KEY) || 0; }
+function setHi(s) { if (s > getHi()) localStorage.setItem(LB_KEY, s); }
+
+// ── State ──────────────────────────────���─────
+let state = 'menu';
+let survived = 0; // frames
+
+// ── Seesaw physics ───────────────────────────
+const MAX_ANGLE = Math.PI / 5.5; // ~32 degrees max tilt
+let seesawAngle = 0;
+let ballPos     = 0;   // -1 (left end) ~ 0 (center) ~ +1 (right end)
+let ballVel     = 0;
+
+// Keyboard state
+const keys = {};
+let mousePosX = 0.5; // 0 (left) ~ 1 (right)
+
+// Gust (random perturbation)
+let gustForce = 0;
+let gustTimer = 120;
+
+// Floating particles (background)
+let bgParticles = [];
+function initParticles() {
+  bgParticles = Array.from({ length: 30 }, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    r: Math.random() * 2 + 0.5,
+    alpha: Math.random() * 0.4 + 0.1,
+    vy: -(Math.random() * 0.3 + 0.1),
+    vx: (Math.random() - 0.5) * 0.2,
+  }));
+}
+initParticles();
+
+// ── Init ─────────────────────────────────────
+function init() {
+  survived   = 0;
+  seesawAngle = 0;
+  ballPos    = 0;
+  ballVel    = 0;
+  gustForce  = 0;
+  gustTimer  = 120;
+  initParticles();
+}
+
+// ── Update ───────────────────────────────────
+function update() {
+  if (state !== 'playing') return;
+  survived++;
+
+  // Seesaw target angle from input
+  let targetAngle = 0;
+  if (cfg.inputMode === 'sensor') {
+    const range  = SENS_RANGE[cfg.sensitivity - 1];
+    const offset = sensorVal - cfg.midpoint;
+    const ratio  = Math.max(-1, Math.min(1, offset / range));
+    targetAngle  = ratio * MAX_ANGLE;
+  } else if (cfg.inputMode === 'keyboard') {
+    const left  = keys['ArrowLeft'] || keys['a'] || keys['A'];
+    const right = keys['ArrowRight'] || keys['d'] || keys['D'];
+    targetAngle = ((right ? 1 : 0) - (left ? 1 : 0)) * MAX_ANGLE;
+  } else if (cfg.inputMode === 'mouse') {
+    targetAngle = (mousePosX * 2 - 1) * MAX_ANGLE;
+  }
+
+  // Seesaw lazy follow (inertia)
+  const responsiveness = 0.1;
+  seesawAngle += (targetAngle - seesawAngle) * responsiveness;
+
+  // Gust (random perturbation, difficulty-based)
+  gustTimer--;
+  if (gustTimer <= 0) {
+    const d = cfg.gustLevel;
+    const mag = [0.0015, 0.0032, 0.0060][d - 1];
+    gustForce = (Math.random() - 0.5) * mag * 2;
+    const minInt = [200, 120, 60][d - 1];
+    const maxInt = [360, 220, 130][d - 1];
+    gustTimer = minInt + Math.floor(Math.random() * (maxInt - minInt));
+  }
+  gustForce *= 0.96; // decay
+
+  // Ball physics
+  const gravity = Math.sin(seesawAngle) * 0.011;
+  ballVel += gravity + gustForce;
+  ballVel *= 0.984;  // friction
+  ballPos += ballVel;
+
+  // End condition
+  if (Math.abs(ballPos) >= 1) {
+    endGame();
+    return;
+  }
+
+  // Background particles
+  bgParticles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    if (p.y < -4) { p.y = canvas.height + 4; p.x = Math.random() * canvas.width; }
+  });
+
+  // HUD
+  const secs = Math.floor(survived / 60);
+  document.getElementById('scoreDisp').textContent = secs + 's';
+  document.getElementById('hiDisp').textContent    = Math.max(secs, getHi()) + 's';
+
+  // Balance indicator
+  const absPos = Math.abs(ballPos);
+  const bal = absPos < 0.25 ? '✅' : absPos < 0.55 ? '⚠️' : '🚨';
+  document.getElementById('balDisp').textContent = bal;
+}
+
+// ── Draw ──────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background
+  if (hcMode) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  } else {
+    const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    bg.addColorStop(0, '#020f04');
+    bg.addColorStop(0.6, '#030e06');
+    bg.addColorStop(1, '#050e08');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Subtle radial glow at center
+    const glow = ctx.createRadialGradient(
+      canvas.width/2, canvas.height*0.65, 0,
+      canvas.width/2, canvas.height*0.65, canvas.width*0.6
+    );
+    glow.addColorStop(0, 'rgba(16,185,129,0.06)');
+    glow.addColorStop(1, 'rgba(16,185,129,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Floating particles
+    bgParticles.forEach(p => {
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // Danger flash when ball near edge
+  if (state === 'playing' && Math.abs(ballPos) > 0.72) {
+    const flash = (Math.floor(survived / 6) % 2 === 0) ? 0.18 : 0;
+    ctx.fillStyle = `rgba(239,68,68,${flash})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  if (state === 'menu') return;
+
+  drawSeesaw();
+  drawBall();
+  drawBalanceBar();
+}
+
+function seesawGeom() {
+  const len = Math.min(canvas.width * 0.82, 480);
+  const cx  = canvas.width / 2;
+  const cy  = canvas.height * 0.63;
+  return { len, cx, cy };
+}
+
+function drawSeesaw() {
+  const { len, cx, cy } = seesawGeom();
+  const H = 14;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(seesawAngle);
+
+  // Danger zones (ends)
+  const dz = len * 0.14;
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = '#ef4444';
+  ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 10;
+  ctx.fillRect(-len / 2, -H / 2, dz, H);
+  ctx.fillRect(len / 2 - dz, -H / 2, dz, H);
+  ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+
+  // Main plank
+  ctx.shadowColor = '#10b981'; ctx.shadowBlur = hcMode ? 0 : 14;
+  ctx.fillStyle = hcMode ? '#333' : '#064e3b';
+  ctx.fillRect(-len / 2, -H / 2, len, H);
+  // Bright top edge
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = hcMode ? '#fff' : '#10b981';
+  ctx.fillRect(-len / 2, -H / 2, len, 3);
+
+  // Center marker (golden line)
+  ctx.fillStyle = '#fbbf24';
+  ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = hcMode ? 0 : 8;
+  ctx.fillRect(-2, -H / 2 - 10, 4, 10);
+  ctx.shadowBlur = 0;
+
+  // Grip marks
+  if (!hcMode) {
+    ctx.strokeStyle = 'rgba(16,185,129,0.3)';
+    ctx.lineWidth = 1;
+    for (let x = -len / 2 + 20; x < len / 2; x += 20) {
+      ctx.beginPath(); ctx.moveTo(x, -H / 2 + 4); ctx.lineTo(x, H / 2 - 4); ctx.stroke();
+    }
+  }
+
+  ctx.restore();
+
+  // Fulcrum (triangle)
+  const baseY = cy + H / 2;
+  const fH    = 38;
+  ctx.save();
+  ctx.shadowColor = hcMode ? '#fff' : '#10b981'; ctx.shadowBlur = hcMode ? 0 : 6;
+  ctx.fillStyle = hcMode ? '#555' : '#065f46';
+  ctx.strokeStyle = hcMode ? '#fff' : '#10b981'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx, baseY);
+  ctx.lineTo(cx - 18, baseY + fH);
+  ctx.lineTo(cx + 18, baseY + fH);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // Base
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = hcMode ? '#444' : '#064e3b';
+  ctx.fillRect(cx - 30, baseY + fH, 60, 10);
+  ctx.restore();
+}
+
+function drawBall() {
+  const { len, cx, cy } = seesawGeom();
+  const H = 14;
+  const BALL_R = 20;
+
+  // Ball position in rotated seesaw coordinates
+  const bxLocal = ballPos * (len / 2 - BALL_R);
+  const byLocal = -H / 2 - BALL_R;
+
+  // Rotate to world space
+  const bx = cx + Math.cos(seesawAngle) * bxLocal - Math.sin(seesawAngle) * byLocal;
+  const by = cy + Math.sin(seesawAngle) * bxLocal + Math.cos(seesawAngle) * byLocal;
+
+  const absPos = Math.abs(ballPos);
+  const color  = absPos < 0.3 ? '#10b981' : absPos < 0.65 ? '#f59e0b' : '#ef4444';
+  const scared = absPos > 0.65;
+
+  ctx.save();
+  ctx.shadowColor = color; ctx.shadowBlur = hcMode ? 0 : 20;
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(bx, by, BALL_R, 0, Math.PI * 2); ctx.fill();
+
+  // Inner highlight
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.beginPath(); ctx.arc(bx - BALL_R * 0.28, by - BALL_R * 0.3, BALL_R * 0.32, 0, Math.PI * 2); ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  const eyeY = by - BALL_R * 0.1;
+  ctx.beginPath(); ctx.arc(bx - BALL_R * 0.28, eyeY, BALL_R * 0.17, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(bx + BALL_R * 0.28, eyeY, BALL_R * 0.17, 0, Math.PI * 2); ctx.fill();
+
+  // Eyebrows (scared = tilted)
+  if (scared) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(bx - BALL_R*0.42, eyeY - BALL_R*0.32); ctx.lineTo(bx - BALL_R*0.14, eyeY - BALL_R*0.22); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx + BALL_R*0.14, eyeY - BALL_R*0.22); ctx.lineTo(bx + BALL_R*0.42, eyeY - BALL_R*0.32); ctx.stroke();
+  }
+
+  // Mouth
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  if (scared) {
+    // Frown
+    ctx.arc(bx, by + BALL_R * 0.42, BALL_R * 0.28, Math.PI, 0);
+  } else {
+    // Smile
+    ctx.arc(bx, by + BALL_R * 0.1, BALL_R * 0.3, 0.1 * Math.PI, 0.9 * Math.PI);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawBalanceBar() {
+  // Horizontal meter at the top of game area showing ball position
+  const bw = canvas.width * 0.6;
+  const bx = (canvas.width - bw) / 2;
+  const by = 12;
+  const bh = 8;
+
+  // Track
+  ctx.fillStyle = hcMode ? '#333' : '#0a2a10';
+  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 4); ctx.fill();
+
+  // Center mark
+  ctx.fillStyle = hcMode ? '#fff' : '#fbbf24';
+  ctx.fillRect(bx + bw / 2 - 1, by - 2, 2, bh + 4);
+
+  // Ball indicator
+  const indX = bx + (ballPos + 1) / 2 * bw;
+  const absPos = Math.abs(ballPos);
+  const indColor = absPos < 0.3 ? '#10b981' : absPos < 0.65 ? '#f59e0b' : '#ef4444';
+  ctx.shadowColor = indColor; ctx.shadowBlur = hcMode ? 0 : 8;
+  ctx.fillStyle = indColor;
+  ctx.beginPath(); ctx.arc(indX, by + bh / 2, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Danger zone markers
+  ctx.fillStyle = 'rgba(239,68,68,0.5)';
+  ctx.fillRect(bx, by, bw * 0.12, bh);
+  ctx.fillRect(bx + bw * 0.88, by, bw * 0.12, bh);
+}
+
+// ── Game Loop ─────────────────────────────────
+function loop() { requestAnimationFrame(loop); update(); draw(); }
+loop();
+
+// ── Game Flow ─────────────────────────────────
+function startGame() {
+  init(); state = 'playing';
+  document.getElementById('startPanel').classList.add('hidden');
+  document.getElementById('overPanel').classList.add('hidden');
+  document.getElementById('balDisp').textContent = '⚖️';
+}
+function endGame() {
+  state = 'gameover';
+  const secs = Math.floor(survived / 60);
+  setHi(secs);
+  document.getElementById('finalDisp').textContent = secs + '초 생존';
+  document.getElementById('hiMsg').textContent =
+    secs >= getHi() ? '🎉 새 최고 기록!' : `최고 기록: ${getHi()}초`;
+  document.getElementById('hiDisp').textContent = getHi() + 's';
+  document.getElementById('overPanel').classList.remove('hidden');
+}
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+
+// ── Input ─────────────────────────────────────
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (['ArrowLeft','ArrowRight','a','A','d','D'].includes(e.key)) e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mousePosX = (e.clientX - rect.left) / rect.width;
+});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  mousePosX = (e.touches[0].clientX - rect.left) / rect.width;
+}, { passive: false });
+
+// ── Serial ────────────────────────────────────
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) await serial.disconnect();
+  else try { await serial.connect(); } catch (e) { alert(e.message); }
+});
+
+// ── Settings ────────────────────────────────��─
+document.getElementById('settBtn').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.toggle('open'));
+document.getElementById('closeSett').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.remove('open'));
+
+document.getElementById('midSlider').addEventListener('input', e => {
+  cfg.midpoint = +e.target.value;
+  document.getElementById('midLabel').textContent = cfg.midpoint;
+});
+document.getElementById('sensSlider').addEventListener('input', e => {
+  cfg.sensitivity = +e.target.value;
+  document.getElementById('sensLabel').textContent = ['낮음','보통','높음'][cfg.sensitivity - 1];
+});
+document.getElementById('gustSlider').addEventListener('input', e => {
+  cfg.gustLevel = +e.target.value;
+  document.getElementById('gustLabel').textContent = ['적음','보통','많음'][cfg.gustLevel - 1];
+});
+document.getElementById('inputModeSelect').addEventListener('change', e => {
+  cfg.inputMode = e.target.value;
+  syncInputModeUI();
+});
+document.getElementById('calibBtn').addEventListener('click', () => {
+  cfg.midpoint = Math.round(sensorVal);
+  document.getElementById('midSlider').value = cfg.midpoint;
+  document.getElementById('midLabel').textContent = cfg.midpoint;
+});
+
+document.getElementById('hiDisp').textContent = getHi() + 's';
+syncInputModeUI();
+</script>
+</body>
+</html>
