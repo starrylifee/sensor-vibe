@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>색칠 달리기 — EZMaker</title>
+<style>
+  :root{--bg:#050510;--panel:#0d0d20;--border:#1a1a3a;--accent:#f59e0b;--success:#00ff88;--muted:#64748b;--text:#e2e8f0;}
+  body.hc{--bg:#000;--panel:#111;--border:#fff;--text:#fff;--muted:#ddd;}
+  body.hc .overlay{background:rgba(0,0,0,.97);}
+  body.hc #settPanel{background:#111;border-color:#fff;}
+  body.hc .testbox{background:#1a1a1a;border-color:#fff;}
+  body.hc .srow select{background:#1a1a1a;border-color:#fff;color:#fff;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+    height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+  #topbar{width:100%;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);gap:8px;flex-shrink:0;}
+  #topbar a{color:var(--muted);text-decoration:none;font-size:.8rem;}
+  #topbar a:hover{color:var(--accent);}
+  .stat{text-align:center;}
+  .stat .label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat .value{font-size:1.05rem;font-weight:700;color:var(--accent);font-family:monospace;}
+  #gameWrap{position:relative;flex:1;width:100%;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+  #sensorBar{width:100%;background:var(--panel);border-top:1px solid var(--border);
+    padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  #sensorBar .label{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  #sensorMeter{flex:1;height:8px;background:#1a1a3a;border-radius:4px;overflow:hidden;}
+  #sensorFill{height:100%;background:var(--accent);border-radius:4px;transition:width .05s;width:0%;}
+  #sensorVal{font-size:.75rem;font-family:monospace;color:var(--accent);min-width:50px;text-align:right;}
+  button.ctrl{background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;
+    padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;}
+  button.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+  button.ctrl.connected{border-color:var(--success);color:var(--success);}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.88);z-index:10;flex-direction:column;gap:14px;padding:28px;text-align:center;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-size:1.4rem;font-weight:800;color:var(--accent);}
+  .overlay .sub{color:var(--muted);font-size:.82rem;line-height:1.9;}
+  .btn{background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 28px;
+    font-size:.95rem;font-weight:700;cursor:pointer;min-width:140px;}
+  #settPanel{position:absolute;top:0;right:0;bottom:0;width:min(300px,100%);background:var(--panel);
+    border-left:1px solid var(--border);z-index:20;padding:20px;overflow-y:auto;
+    transform:translateX(100%);transition:transform .3s;}
+  #settPanel.open{transform:translateX(0);}
+  #settPanel h3{color:var(--accent);margin-bottom:18px;}
+  .srow{margin-bottom:16px;}
+  .srow label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;}
+  .srow input[type=range]{width:100%;accent-color:var(--accent);}
+  .testbox{background:#0a0a18;border:1px solid var(--border);border-radius:8px;padding:14px;
+    margin-bottom:16px;text-align:center;}
+  .testbox .bigv{font-size:2rem;font-weight:900;font-family:monospace;color:var(--accent);}
+  .testbox .hint{font-size:.72rem;color:var(--muted);margin-top:4px;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div style="display:flex;gap:14px;align-items:center">
+    <div class="stat"><div class="label">커버리지</div><div class="value" id="coverDisp">0%</div></div>
+    <div class="stat"><div class="label">시간</div><div class="value" id="timerDisp">60</div></div>
+    <div class="stat"><div class="label">최고</div><div class="value" id="hiDisp">0%</div></div>
+  </div>
+  <div style="display:flex;gap:4px">
+    <button class="ctrl" id="hcToggle" onclick="toggleHC()" title="고대비 모드 (직사광선용)">☀️</button>
+    <button class="ctrl" id="settBtn">⚙️</button>
+  </div>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+
+  <div class="overlay" id="startPanel">
+    <h2>🎨 색칠 달리기</h2>
+    <div class="sub">
+      캐릭터가 자동으로 달리며 필드를 칠합니다.<br>
+      초음파 센서에 <strong style="color:var(--accent)">가까이</strong> 댈수록 진한 색,<br>
+      <strong style="color:#94a3b8">멀수록</strong> 연하고 흐린 색이 나옵니다.<br>
+      60초 안에 최대한 많이 칠하세요!
+    </div>
+    <button class="btn" id="startBtn">시작</button>
+  </div>
+
+  <div class="overlay hidden" id="overPanel">
+    <h2>🖼️ 완성!</h2>
+    <div style="font-size:2.4rem;font-weight:900;font-family:monospace;color:var(--accent)" id="finalDisp">0%</div>
+    <div style="font-size:.88rem;color:var(--muted)" id="hiMsg"></div>
+    <button class="btn" id="restartBtn">다시 도전</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem;margin-top:4px">← 목록으로</a>
+  </div>
+</div>
+
+<div id="sensorBar">
+  <span class="label">거리</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">— cm</span>
+  <button class="ctrl" id="connectBtn">🔌 연결</button>
+</div>
+
+<div id="settPanel">
+  <h3>⚙️ 센서 · 게임 설정</h3>
+  <div class="testbox">
+    <div class="bigv" id="tBigV">— cm</div>
+    <div class="hint">초음파 센서 거리 (0~400cm)</div>
+    <div style="height:10px;background:#1a1a3a;border-radius:5px;overflow:hidden;margin-top:8px">
+      <div id="tBar" style="height:100%;background:var(--accent);border-radius:5px;transition:width .05s;width:0%"></div>
+    </div>
+  </div>
+  <div class="srow">
+    <label>최대 감지 거리: <strong id="maxDistLabel">40</strong> cm</label>
+    <input type="range" id="maxDistSlider" min="10" max="150" value="40">
+    <div style="font-size:.72rem;color:var(--muted);margin-top:4px">이 거리에서 가장 연한 색이 나옵니다.</div>
+  </div>
+  <div class="srow">
+    <label>캐릭터 속도: <strong id="speedLabel">보통</strong></label>
+    <input type="range" id="speedSlider" min="1" max="3" value="2" step="1">
+  </div>
+  <div class="srow">
+    <label>게임 시간: <strong id="timeLabel">60</strong>초</label>
+    <input type="range" id="timeSlider" min="30" max="120" value="60" step="10">
+  </div>
+  <button class="btn" id="closeSett" style="width:100%">닫기</button>
+</div>
+
+<script src="js/serial.js"></script>
+<script>
+// ── 고대비 모드 ──────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  const btn = document.getElementById('hcToggle');
+  if (btn) btn.textContent = hcMode ? '🌙' : '☀️';
+}
+function toggleHC() {
+  hcMode = !hcMode;
+  localStorage.setItem('hc_mode', hcMode ? '1' : '0');
+  applyHC();
+}
+applyHC();
+
+// ── Canvas / Grid 설정 ───────────────────────
+const canvas = document.getElementById('gc');
+const ctx    = canvas.getContext('2d');
+const wrap   = document.getElementById('gameWrap');
+const CELL   = 24;
+
+let cols = 0, rows = 0;
+let grid = []; // grid[row][col] = null | { h, s, l }
+
+function resize() {
+  canvas.width  = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+  cols = Math.ceil(canvas.width  / CELL);
+  rows = Math.ceil(canvas.height / CELL);
+  if (state === 'playing') rebuildGrid();
+  else initGrid();
+}
+resize();
+window.addEventListener('resize', resize);
+
+function initGrid() {
+  grid = Array.from({ length: rows }, () => Array(cols).fill(null));
+}
+
+function rebuildGrid() {
+  const newGrid = Array.from({ length: rows }, () => Array(cols).fill(null));
+  for (let r = 0; r < Math.min(rows, grid.length); r++)
+    for (let c = 0; c < Math.min(cols, (grid[r] || []).length); c++)
+      newGrid[r][c] = grid[r][c];
+  grid = newGrid;
+}
+
+// ── Serial ───────────────────────────────────
+const serial = new SerialManager();
+let sensorVal = 0;
+
+serial.onData(v => {
+  sensorVal = v;
+  const pct = Math.min((v / cfg.maxDist) * 100, 100);
+  document.getElementById('sensorFill').style.width = pct + '%';
+  document.getElementById('sensorVal').textContent  = v.toFixed(1) + ' cm';
+  document.getElementById('tBigV').textContent      = v.toFixed(1) + ' cm';
+  document.getElementById('tBar').style.width       = pct + '%';
+});
+serial.onConnect(() => {
+  document.getElementById('connectBtn').textContent = '🔴 연결됨';
+  document.getElementById('connectBtn').classList.add('connected');
+});
+serial.onDisconnect(() => {
+  document.getElementById('connectBtn').textContent = '🔌 연결';
+  document.getElementById('connectBtn').classList.remove('connected');
+  sensorVal = 0;
+});
+
+// ── Config & State ───────────────────────────
+const cfg = { maxDist: 40, speedLevel: 2, gameTime: 60 };
+const LB_KEY = 'paintfield_hi';
+function getHi() { return parseFloat(localStorage.getItem(LB_KEY)) || 0; }
+function setHi(v) { if (v > getHi()) localStorage.setItem(LB_KEY, v.toFixed(1)); }
+
+let state = 'menu';
+let frame = 0, lastSecond = 0, timeLeft = 60, paintedCount = 0;
+
+// ── Character ────────────────────────────────
+const char = { x: 0, y: 0, vx: 0, vy: 0, r: 16 };
+
+function initChar() {
+  char.x  = canvas.width  / 2;
+  char.y  = canvas.height / 2;
+  const spd = [2.5, 3.8, 5.5][cfg.speedLevel - 1];
+  const ang = (Math.floor(Math.random() * 8) * Math.PI / 4) + 0.2;
+  char.vx = Math.cos(ang) * spd;
+  char.vy = Math.sin(ang) * spd;
+}
+
+// ── 센서 → 색 변환 ───────────────────────────
+function paintColor() {
+  const ratio = Math.min(sensorVal / Math.max(cfg.maxDist, 1), 1);
+  const h = (frame * 0.4) % 360;           // 서서히 변하는 색조
+  const s = Math.round(100 - ratio * 78);  // 100%(가까움) → 22%(멀음)
+  const l = Math.round(45  + ratio * 35);  // 45%(가까움) → 80%(멀음)
+  return { h, s, l };
+}
+
+// ── Update ────────────────────────────────────
+function update() {
+  if (state !== 'playing') return;
+  frame++;
+
+  const sec = Math.floor(frame / 60);
+  if (sec !== lastSecond) {
+    lastSecond = sec;
+    timeLeft = Math.max(0, cfg.gameTime - sec);
+    document.getElementById('timerDisp').textContent = timeLeft;
+    if (timeLeft <= 0) { endGame(); return; }
+  }
+
+  // 캐릭터 이동 + 벽 반사
+  char.x += char.vx;
+  char.y += char.vy;
+  if (char.x - char.r < 0)             { char.x = char.r;                char.vx =  Math.abs(char.vx); }
+  if (char.x + char.r > canvas.width)  { char.x = canvas.width  - char.r; char.vx = -Math.abs(char.vx); }
+  if (char.y - char.r < 0)             { char.y = char.r;                char.vy =  Math.abs(char.vy); }
+  if (char.y + char.r > canvas.height) { char.y = canvas.height - char.r; char.vy = -Math.abs(char.vy); }
+
+  // 캐릭터 주변 3×3 셀 페인팅
+  const col  = paintColor();
+  const cCol = Math.floor(char.x / CELL);
+  const cRow = Math.floor(char.y / CELL);
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const r = cRow + dr, c = cCol + dc;
+      if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
+      if (!grid[r][c]) paintedCount++;
+      grid[r][c] = col;
+    }
+  }
+
+  const total = rows * cols;
+  const pct   = total > 0 ? (paintedCount / total * 100) : 0;
+  document.getElementById('coverDisp').textContent = pct.toFixed(1) + '%';
+}
+
+// ── Draw ──────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = hcMode ? '#000000' : '#050510';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (state === 'menu') return;
+
+  // 격자 칠하기
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = grid[r][c];
+      if (!cell) continue;
+      ctx.fillStyle = `hsl(${cell.h},${cell.s}%,${cell.l}%)`;
+      ctx.fillRect(c * CELL, r * CELL, CELL - 1, CELL - 1);
+    }
+  }
+
+  // 캐릭터
+  if (state === 'playing') drawChar();
+}
+
+function drawChar() {
+  const { x, y, r } = char;
+  const col = paintColor();
+  ctx.save();
+
+  // 발광 효과
+  ctx.shadowColor = `hsl(${col.h},${col.s}%,${col.l}%)`;
+  ctx.shadowBlur  = 20;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = `hsl(${col.h},${col.s}%,${col.l}%)`;
+  ctx.fill();
+
+  // 얼굴
+  ctx.shadowBlur = 0;
+  ctx.fillStyle  = 'rgba(0,0,0,0.5)';
+  ctx.beginPath(); ctx.arc(x - r * 0.28, y - r * 0.15, r * 0.18, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + r * 0.28, y - r * 0.15, r * 0.18, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  ctx.arc(x, y + r * 0.1, r * 0.35, 0.1 * Math.PI, 0.9 * Math.PI);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── Game Loop ─────────────────────────────────
+function loop() { requestAnimationFrame(loop); update(); draw(); }
+loop();
+
+// ── Game Flow ─────────────────────────────────
+function startGame() {
+  initGrid();
+  initChar();
+  frame = 0; lastSecond = 0; paintedCount = 0;
+  timeLeft = cfg.gameTime;
+  state = 'playing';
+  document.getElementById('timerDisp').textContent  = timeLeft;
+  document.getElementById('coverDisp').textContent  = '0%';
+  document.getElementById('startPanel').classList.add('hidden');
+  document.getElementById('overPanel').classList.add('hidden');
+}
+
+function endGame() {
+  state = 'gameover';
+  const total  = rows * cols;
+  const pct    = total > 0 ? (paintedCount / total * 100) : 0;
+  setHi(pct);
+  document.getElementById('finalDisp').textContent = pct.toFixed(1) + '%';
+  document.getElementById('hiMsg').textContent     =
+    pct >= getHi() ? '🎉 새 최고 기록!' : `최고 기록: ${getHi().toFixed(1)}%`;
+  document.getElementById('hiDisp').textContent    = getHi().toFixed(1) + '%';
+  document.getElementById('overPanel').classList.remove('hidden');
+}
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+
+// ── Serial 연결 ───────────────────────────────
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) await serial.disconnect();
+  else try { await serial.connect(); } catch (e) { alert(e.message); }
+});
+
+// ── Settings ──────────────────────────────────
+document.getElementById('settBtn').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.toggle('open'));
+document.getElementById('closeSett').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.remove('open'));
+document.getElementById('maxDistSlider').addEventListener('input', e => {
+  cfg.maxDist = +e.target.value;
+  document.getElementById('maxDistLabel').textContent = cfg.maxDist;
+});
+document.getElementById('speedSlider').addEventListener('input', e => {
+  cfg.speedLevel = +e.target.value;
+  document.getElementById('speedLabel').textContent = ['느림','보통','빠름'][cfg.speedLevel - 1];
+});
+document.getElementById('timeSlider').addEventListener('input', e => {
+  cfg.gameTime = +e.target.value;
+  document.getElementById('timeLabel').textContent = cfg.gameTime;
+});
+
+document.getElementById('hiDisp').textContent = getHi().toFixed(1) + '%';
+</script>
+</body>
+</html>

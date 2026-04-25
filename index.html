@@ -366,7 +366,7 @@
 <!-- ══ 학생 작품 탭 ══ -->
 <div class="tab-panel" id="tab-student">
 
-  <div class="student-placeholder">
+  <div class="student-placeholder" style="display:none">
     <div class="ph-box">
       <div class="ph-icon">🎓</div>
       <h3>학생 작품 섹션</h3>
@@ -376,7 +376,21 @@
   </div>
 
   <!-- 학생 작품 카드 그리드 (내일 여기에 추가) -->
-  <div class="grid" id="student-grid" style="display:none">
+  <div class="grid" id="student-grid">
+  <a href="paint-field.html" class="card" style="--c:#f59e0b">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">🎨</span>
+      <div class="card-title">색칠 달리기</div>
+      <div class="card-desc">초음파 센서에 가까이 댈수록 진한 색, 멀수록 연한 색! 캐릭터가 달리며 필드를 칠해요. 60초 안에 최대한 넓게!</div>
+      <span class="sensor-badge">초음파 센서 (거리)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-paint">—</span></div>
+      <button class="play-btn" style="background:#f59e0b;box-shadow:0 0 12px #f59e0b">플레이 →</button>
+    </div>
+  </a>
+
     <!-- 예시: 아래 카드 복사해서 학생 작품 추가
     <a href="학생파일.html" class="card" style="--c:#a855f7">
       <div class="card-top"></div>
@@ -476,6 +490,8 @@ document.getElementById('hi-sound').textContent =
   fmt(localStorage.getItem('brightjump_hi'));
 document.getElementById('hi-ultra').textContent =
   fmt(localStorage.getItem('ultrabreak_hi'));
+document.getElementById('hi-paint').textContent =
+  fmt(localStorage.getItem('paintfield_hi'));
 
 // ── 브라우저 체크 ────────────────────────────
 if (!('serial' in navigator)) {
