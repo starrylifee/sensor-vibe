@@ -177,7 +177,7 @@ let balls = [], bricks = [], powerups = [], particles = [];
 let slowTimer = 0;
 
 // ── Paddle (horizontal, bottom) ────────────────
-const paddle = { x: 0, w: 130, h: 14 };
+const paddle = { x: 0, w: 200, h: 16 };
 let mousePaddleX = 0.5;
 const keys = {};
 
@@ -277,7 +277,7 @@ function applyPowerup(type) {
     slowTimer = 360;
   } else if (type === 'paddlegrow') {
     paddle.w = Math.min(paddle.w + 40, canvas.width * 0.55);
-    setTimeout(() => { paddle.w = Math.max(paddle.w - 40, 70); }, 8000);
+    setTimeout(() => { paddle.w = Math.round(canvas.width * 0.22); }, 8000);
   } else if (type === 'extralife') {
     lives = Math.min(lives + 1, 5);
     updateHUD();
@@ -289,7 +289,7 @@ function init(keepScore = false) {
   if (!keepScore) { score = 0; lives = 3; stage = 1; }
   balls = []; powerups = []; particles = [];
   slowTimer = 0;
-  paddle.w  = 130;
+  paddle.w  = Math.round(canvas.width * 0.22);
   paddle.x  = canvas.width / 2 - paddle.w / 2;
   Object.keys(keys).forEach(key => { keys[key] = false; });
   buildStage(stage);
