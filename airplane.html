@@ -16,6 +16,11 @@
     --text: #e2e8f0;
     --muted: #64748b;
   }
+  body.hc { --bg:#000; --panel:#111; --border:#fff; --text:#fff; --muted:#ddd; }
+  body.hc .overlay { background:rgba(0,0,0,.97); }
+  body.hc #settingsPanel, body.hc #leaderPanel { background:#111; border-color:#fff; }
+  body.hc .setting-row select, body.hc #nameInput { background:#1a1a1a; border-color:#fff; color:#fff; }
+  body.hc .test-box { background:#1a1a1a; border-color:#fff; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', system-ui, sans-serif;
@@ -313,6 +318,10 @@
       </div>
     </div>
   </div>
+  <button id="hcToggle" onclick="toggleHC()"
+    style="background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;
+           padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap"
+    title="고대비 모드 (직사광선용)">☀️</button>
   <button id="leaderBtn">🏆</button>
 </div>
 
@@ -416,6 +425,20 @@
 // ══════════════════════════════════════════════
 //  Config & State
 // ══════════════════════════════════════════════
+// ── 고대비 모드 ──────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  const btn = document.getElementById('hcToggle');
+  if (btn) btn.textContent = hcMode ? '🌙' : '☀️';
+}
+function toggleHC() {
+  hcMode = !hcMode;
+  localStorage.setItem('hc_mode', hcMode ? '1' : '0');
+  applyHC();
+}
+applyHC();
+
 const cfg = {
   threshold: 300,  // sensor < this = covered = shoot
   speedLevel: 2,   // 1=slow, 2=normal, 3=fast
@@ -792,10 +815,14 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Background
-  const grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  grd.addColorStop(0, '#030310');
-  grd.addColorStop(1, '#050520');
-  ctx.fillStyle = grd;
+  if (hcMode) {
+    ctx.fillStyle = '#000000';
+  } else {
+    const grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grd.addColorStop(0, '#030310');
+    grd.addColorStop(1, '#050520');
+    ctx.fillStyle = grd;
+  }
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Stars

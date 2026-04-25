@@ -9,6 +9,11 @@
     --bg:#080810;--panel:#0d0d20;--border:#1a1a3a;
     --accent:#ff6b35;--success:#00ff88;--muted:#64748b;--text:#e2e8f0;
   }
+  body.hc{--bg:#000;--panel:#111;--border:#fff;--text:#fff;--muted:#ddd;}
+  body.hc .overlay{background:rgba(0,0,0,.97);}
+  body.hc #settingPanel{background:#111;border-color:#fff;}
+  body.hc .testbox{background:#1a1a1a;border-color:#fff;}
+  body.hc .srow select{background:#1a1a1a;border-color:#fff;color:#fff;}
   *{box-sizing:border-box;margin:0;padding:0;}
   body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
     height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
@@ -69,6 +74,7 @@
       <div id="hpDisp" style="display:flex;gap:2px;justify-content:center;margin-top:2px"></div>
     </div>
   </div>
+  <button class="ctrl" id="hcToggle" onclick="toggleHC()" title="고대비 모드 (직사광선용)">☀️</button>
   <button class="ctrl" id="settBtn">⚙️</button>
 </div>
 
@@ -146,6 +152,20 @@ const INPUT_MODE_LABELS = {
   keyboard: '키보드',
   mouse: '마우스',
 };
+// ── 고대비 모드 ──────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  const btn = document.getElementById('hcToggle');
+  if (btn) btn.textContent = hcMode ? '🌙' : '☀️';
+}
+function toggleHC() {
+  hcMode = !hcMode;
+  localStorage.setItem('hc_mode', hcMode ? '1' : '0');
+  applyHC();
+}
+applyHC();
+
 const LB_KEY = 'brightjump_hi';
 function getHi() { return +localStorage.getItem(LB_KEY) || 0; }
 function setHi(s) { if (s > getHi()) localStorage.setItem(LB_KEY, s); }
@@ -268,10 +288,14 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Sky
-  const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  sky.addColorStop(0, '#0a0520');
-  sky.addColorStop(1, '#1a0a30');
-  ctx.fillStyle = sky;
+  if (hcMode) {
+    ctx.fillStyle = '#000000';
+  } else {
+    const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    sky.addColorStop(0, '#0a0520');
+    sky.addColorStop(1, '#1a0a30');
+    ctx.fillStyle = sky;
+  }
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Clouds

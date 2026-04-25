@@ -12,6 +12,11 @@
     --text: #e2e8f0;
     --muted: #64748b;
   }
+  body.hc { --bg:#000; --card:#111; --border:#fff; --text:#fff; --muted:#ddd; }
+  body.hc header h1 { background:#ffff00; -webkit-background-clip:text; background-clip:text; }
+  body.hc .card { border-width:2px; }
+  body.hc .modal-box { background:#111; border-color:#fff; }
+  body.hc #helpModal { background:rgba(0,0,0,.97); }
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -279,6 +284,11 @@
   <div class="brand">EZMaker Online · Sensor Vibe</div>
   <h1>센서 게임 허브</h1>
   <p>밝기 · 소리 · 초음파 센서를 연결하고 게임을 즐겨보세요 · Chrome / Edge 전용</p>
+  <button id="hcToggle" onclick="toggleHC()"
+    style="margin-top:14px;background:none;border:2px solid #fff;color:#fff;border-radius:8px;
+           padding:7px 20px;font-size:.85rem;font-weight:700;cursor:pointer;letter-spacing:.5px">
+    ☀️ 고대비 모드
+  </button>
 </header>
 
 <nav class="tab-nav">
@@ -407,6 +417,20 @@
 </div>
 
 <script>
+// ── 고대비 모드 ──────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  const btn = document.getElementById('hcToggle');
+  if (btn) btn.textContent = hcMode ? '🌙 일반 모드' : '☀️ 고대비 모드';
+}
+function toggleHC() {
+  hcMode = !hcMode;
+  localStorage.setItem('hc_mode', hcMode ? '1' : '0');
+  applyHC();
+}
+applyHC();
+
 // ── 별 배경 ──────────────────────────────────
 const cv = document.getElementById('starfield');
 const cx = cv.getContext('2d');
