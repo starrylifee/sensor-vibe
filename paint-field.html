@@ -148,6 +148,7 @@ const CELL   = 24;
 
 let cols = 0, rows = 0;
 let grid = []; // grid[row][col] = null | { h, s, l }
+let state = 'menu'; // resize()보다 먼저 선언 필요
 
 function resize() {
   canvas.width  = wrap.clientWidth;
@@ -200,7 +201,6 @@ const LB_KEY = 'paintfield_hi';
 function getHi() { return parseFloat(localStorage.getItem(LB_KEY)) || 0; }
 function setHi(v) { if (v > getHi()) localStorage.setItem(LB_KEY, v.toFixed(1)); }
 
-let state = 'menu';
 let frame = 0, lastSecond = 0, timeLeft = 60, paintedCount = 0;
 
 // ── Character ────────────────────────────────
