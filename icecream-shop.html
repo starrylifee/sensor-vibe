@@ -190,6 +190,7 @@ const CONE_HW    = 34;  // half-width of cone opening
 const CONE_H     = 78;
 const SHELF_Y    = 58;  // y of dispenser shelf
 const SCOOP_Y    = SHELF_Y + 34; // resting y of scoop (center)
+const STACK_STEP = 31;
 const MAX_MISSES = 3;
 
 const SCOOP_COLORS = [
@@ -205,7 +206,7 @@ const SCOOP_COLORS = [
 let state = 'menu';
 let score = 0, misses = 0, frame = 0;
 let oscT = 0;
-let particles = [], textPops = [];
+let stack = [], particles = [], textPops = [];
 let prevCovered = false, dropKeyHeld = false;
 
 const scoop = { x: 0, y: SCOOP_Y, vy: 0, state: 'moving', colorIdx: 0 };
@@ -214,7 +215,7 @@ const cone  = { x: 0, y: 0 };
 // ── Init ──────────────────────────────────────
 function initGame() {
   score = 0; misses = 0; frame = 0; oscT = 0;
-  particles = []; textPops = [];
+  stack = []; particles = []; textPops = [];
   scoop.state = 'moving'; scoop.colorIdx = 0;
   scoop.x = canvas.width / 2; scoop.y = SCOOP_Y; scoop.vy = 0;
   cone.x  = canvas.width / 2;
@@ -222,6 +223,29 @@ function initGame() {
   prevCovered = false; dropKeyHeld = false;
   updateScoreUI(); updateLivesUI();
   document.getElementById('hiDisp').textContent = getHi();
+}
+
+function getStackTarget() {
+  const top = stack[stack.length - 1];
+  return {
+    x: top ? top.x : cone.x,
+    y: cone.y - SCOOP_R - stack.length * STACK_STEP,
+  };
+}
+
+function getCatchTolerance() {
+  return Math.max(34, CONE_HW + SCOOP_R * 0.7 - Math.min(stack.length, 12) * 0.8);
+}
+
+function addStackedScoop() {
+  const target = getStackTarget();
+  const lean = Math.max(-10, Math.min(10, scoop.x - target.x)) * 0.35;
+  stack.push({
+    x: target.x + lean,
+    y: target.y,
+    colorIdx: scoop.colorIdx,
+  });
+  return target;
 }
 
 // ── Update ────────────────────────────────────
@@ -238,28 +262,31 @@ function update() {
   dropKeyHeld = false;
 
   if (scoop.state === 'moving') {
-    const spd = Math.min(0.022 + score * 0.003, 0.055);
+    const spd = Math.min(0.02 + score * 0.002, 0.048);
     oscT += spd;
     scoop.x = canvas.width / 2 + Math.sin(oscT) * (canvas.width * 0.37);
     scoop.y = SCOOP_Y;
 
     if (justCovered) {
       scoop.state = 'falling';
-      scoop.vy = 4 + score * 0.2;
+      scoop.vy = Math.min(4 + score * 0.12, 7.5);
     }
   } else if (scoop.state === 'falling') {
     scoop.vy = Math.min(scoop.vy + 0.38, 18);
     scoop.y += scoop.vy;
 
-    if (scoop.y + SCOOP_R >= cone.y) {
-      if (Math.abs(scoop.x - cone.x) <= CONE_HW + SCOOP_R * 0.5) {
+    const target = getStackTarget();
+    const tolerance = getCatchTolerance();
+    if (scoop.y >= target.y) {
+      if (Math.abs(scoop.x - target.x) <= tolerance) {
         // Caught!
+        const landed = addStackedScoop();
         score++;
         saveHi(score);
         updateScoreUI();
         document.getElementById('hiDisp').textContent = getHi();
-        spawnCatchParticles(scoop.x, cone.y);
-        textPops.push({ text: '+1!', x: scoop.x, y: cone.y - 20, alpha: 1, vy: -1.8, life: 45 });
+        spawnCatchParticles(landed.x, landed.y);
+        textPops.push({ text: '+1!', x: landed.x, y: landed.y - 20, alpha: 1, vy: -1.8, life: 45 });
         scoop.state = 'waiting';
         setTimeout(nextScoop, 650);
       } else if (scoop.y > canvas.height + 60) {
@@ -319,15 +346,37 @@ function spawnMissParticles(x, y) {
   }
 }
 
+function drawCatchTarget(target, tolerance, highlight) {
+  ctx.save();
+  ctx.globalAlpha = highlight ? 0.42 : 0.18;
+  ctx.shadowColor = '#ffd166';
+  ctx.shadowBlur = highlight ? 22 : 8;
+  ctx.fillStyle = '#ffd166';
+  ctx.beginPath();
+  ctx.ellipse(target.x, target.y + SCOOP_R * 0.7, tolerance, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawStack() {
+  for (const item of stack) {
+    drawScoopShape(item.x, item.y, SCOOP_COLORS[item.colorIdx]);
+  }
+}
+
 // ── Draw ──────────────────────────────────────
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawBackground();
   if (state === 'menu') return;
 
-  // Catch zone glow when scoop is directly above cone
-  const inZone = scoop.state === 'moving' && Math.abs(scoop.x - cone.x) <= CONE_HW + SCOOP_R * 0.6;
-  drawCone(cone.x, cone.y, inZone);
+  // Catch zone glow when scoop is directly above the current tower top.
+  const target = getStackTarget();
+  const tolerance = getCatchTolerance();
+  const inZone = scoop.state === 'moving' && Math.abs(scoop.x - target.x) <= tolerance;
+  drawCone(cone.x, cone.y, false);
+  drawStack();
+  drawCatchTarget(target, tolerance, inZone);
 
   // Arm from shelf to scoop (only when moving)
   if (scoop.state === 'moving') {
@@ -343,7 +392,9 @@ function draw() {
     ctx.restore();
   }
 
-  drawScoopShape(scoop.x, scoop.y, SCOOP_COLORS[scoop.colorIdx]);
+  if (scoop.state !== 'waiting') {
+    drawScoopShape(scoop.x, scoop.y, SCOOP_COLORS[scoop.colorIdx]);
+  }
 
   // Particles
   for (const p of particles) {
