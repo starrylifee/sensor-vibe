@@ -183,8 +183,8 @@ function saveHi(s) { if (s > getHi()) localStorage.setItem(LB_KEY, s); }
 
 // ── Constants ─────────────────────────────────
 const PLAYER_SX = 100;   // fixed screen X
-const GRAVITY   = 0.52;
-const JUMP_VY   = -13.5;
+const GRAVITY   = 0.48;
+const JUMP_VY   = -15.5;
 const GAME_SEC  = 60;
 
 // Ground and fruit heights (set in init to use canvas.height)
@@ -215,7 +215,7 @@ function initClouds() {
 // ── Init ──────────────────────────────────────
 function initGame() {
   GROUND_Y = canvas.height * 0.70;
-  FRUIT_Y  = canvas.height * 0.32;
+  FRUIT_Y  = Math.max(canvas.height * 0.24, GROUND_Y - 165);
   score = 0; frame = 0; timeLeft = GAME_SEC; lastSecFrame = 0;
   fruits = []; particles = [];
   initClouds();
@@ -234,7 +234,7 @@ function spawnFruit() {
   const isBanana = Math.random() < 0.55;
   fruits.push({
     x: canvas.width + 60,
-    y: FRUIT_Y + (Math.random() - 0.5) * canvas.height * 0.08,
+    y: FRUIT_Y + (Math.random() - 0.5) * canvas.height * 0.05,
     type: isBanana ? 'banana' : 'apple',
     collected: false, missed: false,
   });
@@ -291,7 +291,7 @@ function update() {
     // Collision: check if player overlaps fruit
     const dx = Math.abs(f.x - PLAYER_SX);
     const dy = Math.abs(f.y - playerCenterY);
-    if (dx < 32 && dy < 28) {
+    if (dx < 36 && dy < 36) {
       f.collected = true;
       if (f.type === 'banana') {
         score += 3;

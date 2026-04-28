@@ -138,8 +138,8 @@
     </div>
     <div style="text-align:center;font-size:.78rem;color:var(--muted);margin-bottom:2px">난이도 선택</div>
     <div class="diff-row">
-      <button class="diff-btn" data-diff="easy"   onclick="setDiff('easy')"  >🟢 쉬움</button>
-      <button class="diff-btn active" data-diff="normal" onclick="setDiff('normal')">🟡 보통</button>
+      <button class="diff-btn active" data-diff="easy"   onclick="setDiff('easy')"  >🟢 쉬움</button>
+      <button class="diff-btn" data-diff="normal" onclick="setDiff('normal')">🟡 보통</button>
       <button class="diff-btn" data-diff="hard"   onclick="setDiff('hard')"  >🔴 어려움</button>
     </div>
     <button class="btn" id="startBtn">시작</button>
@@ -252,11 +252,11 @@ const cfg = { threshold: 300, inputMode: 'both' };
 
 // ── Difficulty ────────────────────────────────
 const DIFFS = {
-  easy:   { gapMin:55,  gapMax:120, yDelta:50,  wMin:130, wMax:210, total:12, spd:2.5, lives:5, label:'쉬움' },
-  normal: { gapMin:100, gapMax:185, yDelta:90,  wMin:80,  wMax:150, total:18, spd:3.0, lives:3, label:'보통' },
-  hard:   { gapMin:145, gapMax:255, yDelta:120, wMin:52,  wMax:110, total:25, spd:3.5, lives:3, label:'어려움' },
+  easy:   { gapMin:35,  gapMax:75,  yDelta:22, wMin:260, wMax:360, total:8,  spd:1.55, lives:7, label:'쉬움' },
+  normal: { gapMin:50,  gapMax:95,  yDelta:34, wMin:230, wMax:330, total:10, spd:1.75, lives:6, label:'보통' },
+  hard:   { gapMin:70,  gapMax:125, yDelta:48, wMin:190, wMax:290, total:12, spd:2.05, lives:5, label:'어려움' },
 };
-let difficulty = 'normal';
+let difficulty = 'easy';
 let diff = DIFFS[difficulty];
 
 function setDiff(d) {
@@ -288,6 +288,8 @@ const JUMP_VY    = -12;
 const HOLD_BOOST = -0.2;  // extra upward while holding
 const HOLD_CAP   = JUMP_VY * 1.5; // max boost cap
 const MAX_FALL   = 15;
+const COYOTE_FRAMES = 18;
+const JUMP_BUFFER_FRAMES = 18;
 const PLAT_H     = 18;
 const PLAT_COLORS = ['#00e5ff','#00ff88','#f43f5e','#ffd700','#a78bfa','#ff6b35','#4ade80','#f472b6'];
 
@@ -303,6 +305,8 @@ let startTime = 0;
 let prevCovered = false;
 let jumpHeld = false;
 let fastFall = false;
+let coyoteFrames = 0;
+let jumpBufferFrames = 0;
 
 // ── Player ────────────────────────────────────
 const player = {
@@ -352,6 +356,7 @@ function initGame() {
 
   camera.x = player.wx - PLAYER_SX;
   prevCovered = false; jumpHeld = false; fastFall = false;
+  coyoteFrames = COYOTE_FRAMES; jumpBufferFrames = 0;
   startTime = Date.now();
 
   updateLivesUI();
@@ -373,9 +378,17 @@ function update() {
   const justCov    = covered && !prevCovered;
   prevCovered = covered;
 
-  if (justCov && player.grounded) {
+  if (player.grounded) coyoteFrames = COYOTE_FRAMES;
+  else if (coyoteFrames > 0) coyoteFrames--;
+
+  if (justCov) jumpBufferFrames = JUMP_BUFFER_FRAMES;
+  else if (jumpBufferFrames > 0) jumpBufferFrames--;
+
+  if (jumpBufferFrames > 0 && (player.grounded || coyoteFrames > 0)) {
     player.vy = JUMP_VY;
     player.grounded = false;
+    coyoteFrames = 0;
+    jumpBufferFrames = 0;
   }
   if (covered && !player.grounded && player.vy < 0) {
     player.vy = Math.max(player.vy + HOLD_BOOST, HOLD_CAP);
@@ -456,6 +469,8 @@ function loseLife() {
   player.vy = 0; player.grounded = true;
   player.invincible = 160;
   prevCovered = false;
+  coyoteFrames = COYOTE_FRAMES;
+  jumpBufferFrames = 0;
 }
 
 // ── Win ───────────────────────────────────────

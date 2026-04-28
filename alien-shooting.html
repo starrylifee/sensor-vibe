@@ -113,7 +113,8 @@ document.getElementById('serial-btn').addEventListener('click', async () => {
 // ── constants ─────────────────────────────────────────────────
 const THRESHOLD   = 300;
 const GUN_X       = W - 60;
-const GUN_SWEEP_H = H * 0.55;
+const GUN_MARGIN  = 34;
+const GUN_SWEEP_H = H - GUN_MARGIN * 2;
 const GUN_CY      = H * 0.5;
 const BULLET_SPEED= 9;
 const ALIEN_SPEEDS = [1.2, 1.6, 2.0, 2.5, 3.1];  // per round
@@ -366,6 +367,7 @@ function loop() {
   // ── gun sweep ──────────────────────
   gunT += 0.035;
   gunY = GUN_CY + Math.sin(gunT) * GUN_SWEEP_H * 0.5;
+  gunY = Math.max(GUN_MARGIN, Math.min(H - GUN_MARGIN, gunY));
 
   // ── fire bullets ───────────────────
   if (isFiring || kFire) {
@@ -415,7 +417,7 @@ function loop() {
     for (let j = bullets.length - 1; j >= 0; j--) {
       const b = bullets[j];
       const dx = b.x - a.x, dy = b.y - a.y;
-      if (dx * dx + dy * dy < (a.size * 0.65) ** 2) {
+      if (dx * dx + dy * dy < (a.size * 0.85) ** 2) {
         bullets.splice(j, 1);
         a.hp--;
         a.hit = 8;
