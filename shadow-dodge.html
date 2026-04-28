@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>그림자 피하기 게임 — EZMaker</title>
+<style>
+  :root{--bg:#06061a;--panel:#0d0d26;--border:#1a1a40;--accent:#a855f7;--success:#00ff88;--muted:#64748b;--text:#e2e8f0;}
+  body.hc{--bg:#000;--panel:#111;--border:#fff;--text:#fff;--muted:#ddd;}
+  body.hc .overlay{background:rgba(0,0,0,.97);}
+  body.hc #settPanel{background:#111;border-color:#fff;}
+  body.hc .srow select{background:#1a1a1a;border-color:#fff;color:#fff;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+    height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+  #topbar{width:100%;max-width:580px;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);gap:8px;flex-shrink:0;}
+  #topbar a{color:var(--muted);text-decoration:none;font-size:.8rem;}
+  #topbar a:hover{color:var(--accent);}
+  .stat{text-align:center;}
+  .stat .label{font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat .value{font-size:1rem;font-weight:700;color:var(--accent);font-family:monospace;}
+  #energyStat{text-align:center;}
+  #energyTrack{height:8px;background:#1a1a3e;border-radius:4px;margin-top:4px;overflow:hidden;width:85px;}
+  #energyFill{height:100%;border-radius:4px;transition:width .08s,background .2s;width:100%;}
+  #gameWrap{position:relative;flex:1;width:100%;max-width:580px;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+  #sensorBar{width:100%;max-width:580px;background:var(--panel);border-top:1px solid var(--border);
+    padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  #sensorBar .label{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  #sensorMeter{flex:1;height:8px;background:#1a1a3e;border-radius:4px;overflow:hidden;}
+  #sensorFill{height:100%;background:var(--accent);border-radius:4px;transition:width .05s,background .1s;width:0%;}
+  #sensorVal{font-size:.75rem;font-family:monospace;color:var(--accent);min-width:40px;text-align:right;}
+  button.ctrl{background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;
+    padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;}
+  button.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+  button.ctrl.connected{border-color:var(--success);color:var(--success);}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.88);z-index:10;flex-direction:column;gap:12px;padding:24px;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-size:1.45rem;font-weight:800;color:var(--accent);text-align:center;line-height:1.3;}
+  .overlay .sub{color:var(--muted);font-size:.83rem;text-align:center;line-height:1.85;max-width:310px;}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 28px;
+    font-size:.95rem;font-weight:700;cursor:pointer;min-width:140px;}
+  .btn:hover{opacity:.85;}
+  #settPanel{position:absolute;top:0;right:0;bottom:0;width:min(300px,100%);
+    background:var(--panel);border-left:1px solid var(--border);z-index:20;
+    padding:20px;overflow-y:auto;transform:translateX(100%);transition:transform .3s;}
+  #settPanel.open{transform:translateX(0);}
+  #settPanel h3{color:var(--accent);margin-bottom:18px;font-size:1rem;}
+  .srow{margin-bottom:16px;}
+  .srow label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;}
+  .srow input[type=range]{width:100%;accent-color:var(--accent);}
+  .srow select{width:100%;background:#0a0a18;border:1px solid var(--border);color:var(--text);
+    border-radius:8px;padding:8px 10px;}
+  .testbox{background:#0a0a18;border:1px solid var(--border);border-radius:8px;
+    padding:14px;margin-bottom:16px;text-align:center;}
+  .testbox .bigv{font-size:2.5rem;font-weight:900;font-family:monospace;color:var(--accent);line-height:1;}
+  .testbox .hint{font-size:.72rem;color:var(--muted);margin-top:4px;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div style="display:flex;gap:14px;align-items:center">
+    <div class="stat"><div class="label">점수</div><div class="value" id="scoreDisp">0</div></div>
+    <div class="stat"><div class="label">최고</div><div class="value" id="hiDisp">0</div></div>
+    <div id="energyStat">
+      <div class="label" style="font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px">⚡ 에너지</div>
+      <div id="energyTrack"><div id="energyFill"></div></div>
+    </div>
+  </div>
+  <div style="display:flex;gap:4px">
+    <button class="ctrl" id="hcToggle" onclick="toggleHC()">☀️</button>
+    <button class="ctrl" id="settBtn">⚙️</button>
+  </div>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+
+  <!-- 시작 화면 -->
+  <div class="overlay" id="startPanel">
+    <h2>🌑 그림자 피하기 게임</h2>
+    <div class="sub">
+      밝기 센서로 캐릭터를 <strong style="color:var(--accent)">좌우로 이동</strong>해 그림자를 피하세요!<br>
+      <span style="color:#ffd700">센서가 밝을수록</span> 에너지가 충전돼요.<br>
+      어두우면 에너지가 줄어들어요.<br>
+      그림자에 닿으면 에너지가 크게 감소!<br>
+      <span style="font-size:.72rem;opacity:.65">키보드 ←→ / A·D 로도 이동 가능</span>
+    </div>
+    <button class="btn" id="startBtn">시작! 🌟</button>
+  </div>
+
+  <!-- 게임 오버 -->
+  <div class="overlay hidden" id="overPanel">
+    <h2>💀 에너지 소진!</h2>
+    <div style="font-size:2.2rem;font-weight:900;font-family:monospace;color:var(--accent)" id="finalDisp">0점</div>
+    <div class="sub" id="overMsg">그림자에게 잡혔어요...</div>
+    <button class="btn" id="restartBtn">다시 도전 🌟</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem;margin-top:6px">← 목록으로</a>
+  </div>
+</div>
+
+<div id="sensorBar">
+  <span class="label">밝기</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">—</span>
+  <button class="ctrl" id="connectBtn">🔌 연결</button>
+</div>
+
+<div id="settPanel">
+  <h3>⚙️ 센서 · 입력 설정</h3>
+  <div class="testbox">
+    <div class="bigv" id="tBigV">—</div>
+    <div class="hint">현재 밝기 센서 값 (0~1023)</div>
+    <div style="height:10px;background:#1a1a3e;border-radius:5px;overflow:hidden;margin-top:8px">
+      <div id="tBar" style="height:100%;background:var(--accent);border-radius:5px;transition:width .05s;width:0%"></div>
+    </div>
+  </div>
+  <div class="srow">
+    <label>입력 모드: <strong id="inputModeLabel">둘 다</strong></label>
+    <select id="inputModeSelect">
+      <option value="both">센서 + 키보드 둘 다</option>
+      <option value="sensor">센서만 사용</option>
+      <option value="keyboard">키보드만 사용</option>
+    </select>
+  </div>
+  <div class="srow">
+    <label style="font-size:.78rem;color:var(--muted)">💡 센서 값이 높을수록 (밝을수록) 캐릭터가 오른쪽으로 이동하고 에너지가 충전됩니다.</label>
+  </div>
+  <button class="btn" id="closeSett" style="width:100%">닫기</button>
+</div>
+
+<script src="js/serial.js"></script>
+<script>
+// ── 고대비 ────────────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  document.getElementById('hcToggle').textContent = hcMode ? '🌙' : '☀️';
+}
+function toggleHC() { hcMode = !hcMode; localStorage.setItem('hc_mode', hcMode ? '1' : '0'); applyHC(); }
+applyHC();
+
+// ── Canvas ────────────────────────────────────
+const canvas = document.getElementById('gc');
+const ctx    = canvas.getContext('2d');
+const wrap   = document.getElementById('gameWrap');
+function resize() { canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight; }
+resize(); window.addEventListener('resize', () => { resize(); initStars(); });
+
+// ── Serial ────────────────────────────────────
+const serial = new SerialManager();
+let sensorVal = 512; // start at mid-brightness
+serial.onData(v => {
+  sensorVal = v;
+  const pct = (v / 1023) * 100;
+  document.getElementById('sensorFill').style.width      = pct + '%';
+  document.getElementById('sensorFill').style.background = `hsl(${Math.round(pct * 1.2)},90%,55%)`;
+  document.getElementById('sensorVal').textContent       = Math.round(v);
+  document.getElementById('tBigV').textContent           = Math.round(v);
+  document.getElementById('tBar').style.width            = pct + '%';
+});
+serial.onConnect(() => {
+  document.getElementById('connectBtn').textContent = '🔴 연결됨';
+  document.getElementById('connectBtn').classList.add('connected');
+});
+serial.onDisconnect(() => {
+  document.getElementById('connectBtn').textContent = '🔌 연결';
+  document.getElementById('connectBtn').classList.remove('connected');
+});
+
+// ── Config ────────────────────────────────────
+const cfg = { inputMode: 'both' };
+const LB_KEY = 'shadowdodge_hi';
+function getHi() { return +localStorage.getItem(LB_KEY) || 0; }
+function saveHi(s) { if (s > getHi()) localStorage.setItem(LB_KEY, s); }
+
+// ── Constants ─────────────────────────────────
+const MAX_ENERGY    = 100;
+const ENERGY_DRAIN  = 0.03;      // per frame, baseline darkness drain
+const ENERGY_REGEN  = 0.22;      // per frame multiplied by brightness ratio
+const HIT_DAMAGE    = 28;
+const INVINCIBLE_F  = 100;
+const PLAYER_W = 22, PLAYER_H = 42;
+
+// ── State ─────────────────────────────────────
+let state = 'menu';
+let energy = MAX_ENERGY, score = 0, frame = 0;
+let shadows = [], particles = [], stars = [];
+let leftHeld = false, rightHeld = false;
+
+// ── Player ────────────────────────────────────
+const player = {
+  x: 0, y: 0,
+  targetX: 0,
+  invincible: 0,
+};
+
+// ── Stars ─────────────────────────────────────
+function initStars() {
+  stars = Array.from({ length: 70 }, (_, i) => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height * 0.9,
+    r: 0.4 + Math.random() * 1.4,
+    alpha: 0.2 + Math.random() * 0.6,
+    twinkle: Math.random() * Math.PI * 2,
+    speed: 0.008 + Math.random() * 0.02,
+  }));
+}
+initStars();
+
+// ── Init ──────────────────────────────────────
+function initGame() {
+  energy = MAX_ENERGY; score = 0; frame = 0;
+  shadows = []; particles = [];
+  player.x = canvas.width / 2;
+  player.targetX = canvas.width / 2;
+  player.invincible = 0;
+  leftHeld = false; rightHeld = false;
+  updateEnergyUI();
+  document.getElementById('scoreDisp').textContent = 0;
+  document.getElementById('hiDisp').textContent = getHi();
+}
+
+// ── Shadow Spawner ────────────────────────────
+function spawnShadow() {
+  const level = Math.min(Math.floor(score / 60), 5);
+  const type = level < 2 ? 0 : (Math.random() < 0.65 ? 0 : 1);
+  const baseSpeed = 1.5 + level * 0.35;
+
+  if (type === 0) {
+    // Falls from top
+    const r = 22 + Math.random() * 20;
+    shadows.push({
+      x: r + Math.random() * (canvas.width - 2 * r),
+      y: -r - 10,
+      vx: (Math.random() - 0.5) * 1.4,
+      vy: baseSpeed + Math.random() * 1.2,
+      r, wobble: Math.random() * Math.PI * 2, wobbleSpd: 0.04 + Math.random() * 0.04,
+      type: 0, alive: true,
+    });
+  } else {
+    // Sweeps from side
+    const fromLeft = Math.random() < 0.5;
+    const r = 20 + Math.random() * 18;
+    const yZone = canvas.height * (0.25 + Math.random() * 0.45);
+    shadows.push({
+      x: fromLeft ? -r : canvas.width + r,
+      y: yZone,
+      vx: fromLeft ? baseSpeed * 1.3 + 0.5 : -(baseSpeed * 1.3 + 0.5),
+      vy: (Math.random() - 0.5) * 0.8,
+      r, wobble: Math.random() * Math.PI * 2, wobbleSpd: 0.03 + Math.random() * 0.04,
+      type: 1, alive: true,
+    });
+  }
+
+  // Occasionally a homing shadow at higher levels
+  if (level >= 4 && Math.random() < 0.25) {
+    const r = 18 + Math.random() * 12;
+    shadows.push({
+      x: Math.random() * canvas.width,
+      y: -r,
+      vx: 0, vy: 1.2,
+      homing: true,
+      r, wobble: 0, wobbleSpd: 0.05,
+      type: 0, alive: true,
+    });
+  }
+}
+
+// ── Update ────────────────────────────────────
+function update() {
+  if (state !== 'playing') return;
+  frame++;
+  score = Math.floor(frame / 6);
+  document.getElementById('scoreDisp').textContent = score;
+
+  // ── Player movement ──
+  const bright = sensorVal / 1023;
+  const useS = cfg.inputMode === 'sensor' || cfg.inputMode === 'both';
+  const useK = cfg.inputMode === 'keyboard' || cfg.inputMode === 'both';
+
+  if (useS) {
+    player.targetX = bright * (canvas.width - PLAYER_W) + PLAYER_W / 2;
+    player.x += (player.targetX - player.x) * 0.1;
+  }
+  if (useK) {
+    if (leftHeld)  player.x -= 5;
+    if (rightHeld) player.x += 5;
+  }
+  player.x = Math.max(PLAYER_W / 2, Math.min(canvas.width - PLAYER_W / 2, player.x));
+
+  // ── Player Y: gentle bobbing ──
+  player.y = canvas.height * 0.58 + Math.sin(frame * 0.028) * canvas.height * 0.11;
+
+  // ── Energy: regen from brightness, baseline drain ──
+  const regenRate = bright * ENERGY_REGEN - ENERGY_DRAIN;
+  energy = Math.max(0, Math.min(MAX_ENERGY, energy + regenRate));
+  updateEnergyUI();
+
+  if (energy <= 0) { endGame(); return; }
+
+  // ── Spawn shadows ──
+  const spawnInterval = Math.max(38, 115 - Math.floor(score / 25) * 7);
+  if (frame % spawnInterval === 0) spawnShadow();
+
+  // ── Update shadows ──
+  if (player.invincible > 0) player.invincible--;
+  for (const s of shadows) {
+    if (!s.alive) continue;
+    s.wobble += s.wobbleSpd;
+    if (s.homing) {
+      s.vx += (player.x - s.x) * 0.003;
+      s.vx = Math.max(-2.5, Math.min(2.5, s.vx));
+    }
+    s.x += s.vx; s.y += s.vy;
+
+    // Collision with player
+    if (player.invincible === 0) {
+      const dx = s.x - player.x, dy = s.y - player.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < s.r + 14) {
+        energy -= HIT_DAMAGE;
+        player.invincible = INVINCIBLE_F;
+        s.alive = false;
+        spawnHitParticles(s.x, s.y);
+        if (energy <= 0) { energy = 0; endGame(); return; }
+      }
+    }
+  }
+  shadows = shadows.filter(s => s.alive && s.y < canvas.height + 80 && s.x > -80 && s.x < canvas.width + 80);
+
+  // ── Particles ──
+  for (const p of particles) {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.alpha -= 0.028; p.life--;
+  }
+  particles = particles.filter(p => p.life > 0);
+}
+
+// ── Particles ─────────────────────────────────
+function spawnHitParticles(x, y) {
+  const cols = ['#6d28d9','#a855f7','#c4b5fd','#ffffff'];
+  for (let i = 0; i < 14; i++) {
+    const ang = Math.random() * Math.PI * 2, spd = 2 + Math.random() * 5;
+    particles.push({
+      x, y, vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd - 2,
+      alpha: 1, r: 3 + Math.random() * 5, life: 22 + Math.random() * 18,
+      color: cols[Math.floor(Math.random() * cols.length)],
+    });
+  }
+}
+
+// ── End Game ──────────────────────────────────
+function endGame() {
+  state = 'gameover';
+  saveHi(score);
+  document.getElementById('finalDisp').textContent = score + '점';
+  document.getElementById('overMsg').textContent =
+    score > getHi() ? '신기록 달성! 🏆' : '그림자에게 잡혔어요...';
+  document.getElementById('hiDisp').textContent = getHi();
+  showPanel('overPanel');
+}
+
+// ── Draw ──────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawBackground();
+  if (state === 'menu') return;
+  drawEnergyBar();
+  for (const s of shadows) drawShadow(s);
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.alpha);
+    ctx.shadowColor = p.color; ctx.shadowBlur = 7;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+  drawLightHalo();
+  const flicker = player.invincible > 0 && Math.floor(player.invincible / 5) % 2 === 0;
+  if (!flicker) drawPlayer();
+}
+
+// ── Background ────────────────────────────────
+function drawBackground() {
+  const bright = sensorVal / 1023;
+  if (hcMode) {
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  } else {
+    const base = Math.round(6 + bright * 12);
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, `hsl(250,55%,${base}%)`);
+    grad.addColorStop(0.6, `hsl(230,60%,${base + 3}%)`);
+    grad.addColorStop(1, `hsl(215,65%,${base + 5}%)`);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Stars
+  for (const s of stars) {
+    s.twinkle += s.speed;
+    const a = s.alpha * (0.5 + 0.5 * Math.sin(s.twinkle));
+    ctx.globalAlpha = hcMode ? a * 0.6 : a;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Subtle ground fog at bottom
+  if (!hcMode) {
+    const fog = ctx.createLinearGradient(0, canvas.height * 0.85, 0, canvas.height);
+    fog.addColorStop(0, 'rgba(80,0,180,0)');
+    fog.addColorStop(1, 'rgba(40,0,100,0.18)');
+    ctx.fillStyle = fog;
+    ctx.fillRect(0, canvas.height * 0.85, canvas.width, canvas.height * 0.15);
+  }
+}
+
+// ── Energy Bar (inside canvas) ────────────────
+function drawEnergyBar() {
+  const ratio = energy / MAX_ENERGY;
+  const w = canvas.width * 0.55, x = canvas.width / 2 - w / 2, y = 8, h = 8;
+  // Track
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 4); ctx.fill();
+  // Fill
+  const hue = Math.round(ratio * 260); // blue-purple → red
+  ctx.fillStyle = `hsl(${hue},90%,58%)`;
+  ctx.shadowColor = `hsl(${hue},100%,68%)`; ctx.shadowBlur = 8;
+  if (ratio > 0) { ctx.beginPath(); ctx.roundRect(x, y, w * ratio, h, 4); ctx.fill(); }
+  ctx.shadowBlur = 0;
+  // Label
+  ctx.font = 'bold 10px monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ctx.textAlign = 'center';
+  ctx.fillText('⚡ 에너지', canvas.width / 2, y + h + 12);
+  ctx.textAlign = 'left';
+}
+
+// ── Light Halo ────────────────────────────────
+function drawLightHalo() {
+  const bright = sensorVal / 1023;
+  const energyRatio = energy / MAX_ENERGY;
+  const haloR = 40 + bright * 70 + energyRatio * 20;
+  const intensity = bright * 0.22 + energyRatio * 0.08;
+  if (intensity < 0.01) return;
+  const hg = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, haloR);
+  hg.addColorStop(0, `rgba(255, 230, 100, ${intensity})`);
+  hg.addColorStop(0.5, `rgba(200, 150, 255, ${intensity * 0.4})`);
+  hg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = hg;
+  ctx.beginPath(); ctx.arc(player.x, player.y, haloR, 0, Math.PI * 2); ctx.fill();
+}
+
+// ── Player Draw (glowing stick figure) ────────
+function drawPlayer() {
+  const { x, y } = player;
+  const energyRatio = energy / MAX_ENERGY;
+  const glowColor = `hsl(${40 + energyRatio * 30}, 100%, ${55 + energyRatio * 15}%)`;
+  const runPhase = frame * 0.2;
+
+  ctx.save();
+  ctx.shadowColor = glowColor; ctx.shadowBlur = 14 + energyRatio * 10;
+  ctx.strokeStyle = glowColor;
+  ctx.lineWidth   = 2.8;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+
+  // Head
+  ctx.beginPath(); ctx.arc(x, y - 18, 9, 0, Math.PI * 2); ctx.stroke();
+
+  // Body
+  ctx.beginPath(); ctx.moveTo(x, y - 9); ctx.lineTo(x, y + 12); ctx.stroke();
+
+  // Arms (animated)
+  const armSwing = Math.sin(runPhase) * 14;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 2);
+  ctx.lineTo(x - 13 + armSwing * 0.3, y + 4 + armSwing * 0.2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x, y - 2);
+  ctx.lineTo(x + 13 - armSwing * 0.3, y + 4 - armSwing * 0.2);
+  ctx.stroke();
+
+  // Legs (animated)
+  const legSwing = Math.sin(runPhase) * 11;
+  ctx.beginPath();
+  ctx.moveTo(x, y + 12);
+  ctx.lineTo(x - 9 + legSwing, y + 26);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x, y + 12);
+  ctx.lineTo(x + 9 - legSwing, y + 26);
+  ctx.stroke();
+
+  // Eyes
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = glowColor;
+  ctx.beginPath();
+  ctx.arc(x - 3.5, y - 19, 2, 0, Math.PI * 2);
+  ctx.arc(x + 3.5, y - 19, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ── Shadow Draw ───────────────────────────────
+function drawShadow(s) {
+  const { x, y, r, wobble } = s;
+  ctx.save();
+  ctx.globalAlpha = 0.88;
+
+  // Blob shape
+  ctx.shadowColor = s.homing ? '#ff00cc' : '#5500cc';
+  ctx.shadowBlur = 20;
+  ctx.fillStyle = s.homing ? '#2a004a' : '#180030';
+
+  ctx.beginPath();
+  for (let i = 0; i <= 9; i++) {
+    const ang = (i / 9) * Math.PI * 2;
+    const noise = 0.68 + 0.32 * Math.sin(i * 1.9 + wobble);
+    const noise2 = 0.82 + 0.18 * Math.cos(i * 2.7 + wobble * 1.3);
+    const px = x + Math.cos(ang) * r * noise;
+    const py = y + Math.sin(ang) * r * noise2 * 0.88;
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Glowing eyes
+  const eyeColor = s.homing ? '#ff44ff' : '#cc77ff';
+  ctx.shadowColor = eyeColor; ctx.shadowBlur = 10;
+  ctx.fillStyle = eyeColor;
+  ctx.beginPath();
+  ctx.arc(x - r * 0.22, y - r * 0.1, r * 0.14, 0, Math.PI * 2);
+  ctx.arc(x + r * 0.22, y - r * 0.1, r * 0.14, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Inner glow
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(160,80,255,0.15)';
+  ctx.beginPath(); ctx.arc(x, y, r * 0.5, 0, Math.PI * 2); ctx.fill();
+
+  ctx.restore();
+}
+
+// ── Game Loop ─────────────────────────────────
+function loop() { requestAnimationFrame(loop); update(); draw(); }
+loop();
+
+// ── UI ────────────────────────────────────────
+function updateEnergyUI() {
+  const ratio = energy / MAX_ENERGY;
+  const hue = Math.round(ratio * 260);
+  document.getElementById('energyFill').style.width = (ratio * 100) + '%';
+  document.getElementById('energyFill').style.background = `hsl(${hue},90%,58%)`;
+}
+
+function showPanel(id) {
+  ['startPanel','overPanel'].forEach(p =>
+    document.getElementById(p).classList.toggle('hidden', p !== id));
+}
+function hideAllPanels() {
+  ['startPanel','overPanel'].forEach(p => document.getElementById(p).classList.add('hidden'));
+}
+
+// ── Game Flow ─────────────────────────────────
+function startGame() { initGame(); state = 'playing'; hideAllPanels(); }
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+
+// ── Input ─────────────────────────────────────
+window.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') leftHeld  = true;
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') rightHeld = true;
+  if ((e.key === ' ' || e.key === 'Enter') && state !== 'playing') startGame();
+});
+window.addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') leftHeld  = false;
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') rightHeld = false;
+});
+canvas.addEventListener('pointerdown', e => {
+  if (state !== 'playing') { startGame(); return; }
+  // Touch: left half = move left, right half = move right
+  if (e.clientX < canvas.getBoundingClientRect().left + canvas.width / 2) leftHeld = true;
+  else rightHeld = true;
+});
+canvas.addEventListener('pointerup', () => { leftHeld = false; rightHeld = false; });
+
+// ── Serial ────────────────────────────────────
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) await serial.disconnect();
+  else try { await serial.connect(); } catch (e) { alert(e.message); }
+});
+
+// ── Settings ──────────────────────────────────
+document.getElementById('settBtn').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.toggle('open'));
+document.getElementById('closeSett').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.remove('open'));
+document.getElementById('inputModeSelect').addEventListener('change', e => {
+  cfg.inputMode = e.target.value;
+  document.getElementById('inputModeLabel').textContent =
+    { sensor:'센서', keyboard:'키보드', both:'둘 다' }[cfg.inputMode];
+});
+
+document.getElementById('hiDisp').textContent = getHi();
+</script>
+</body>
+</html>

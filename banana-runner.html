@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>바나나 달리기 — EZMaker</title>
+<style>
+  :root{--bg:#e0f2fe;--panel:#fff;--border:#bae6fd;--accent:#f59e0b;--success:#10b981;--muted:#6b7280;--text:#1f2937;}
+  body.hc{--bg:#000;--panel:#111;--border:#fff;--text:#fff;--muted:#ddd;}
+  body.hc .overlay{background:rgba(0,0,0,.95)!important;}
+  body.hc #settPanel{background:#111;border-color:#fff;}
+  body.hc .srow select{background:#222;color:#fff;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+    height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+  #topbar{width:100%;max-width:560px;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);gap:8px;flex-shrink:0;}
+  #topbar a{color:var(--muted);text-decoration:none;font-size:.8rem;}
+  #topbar a:hover{color:var(--accent);}
+  .stat{text-align:center;}
+  .stat .label{font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat .value{font-size:1.05rem;font-weight:700;color:var(--accent);font-family:monospace;}
+  #timerWrap{text-align:center;min-width:55px;}
+  #timerBar{height:6px;background:#fde68a;border-radius:3px;margin-top:4px;overflow:hidden;}
+  #timerFill{height:100%;background:var(--accent);border-radius:3px;transition:width .1s;}
+  #gameWrap{position:relative;flex:1;width:100%;max-width:560px;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+  #sensorBar{width:100%;max-width:560px;background:var(--panel);border-top:1px solid var(--border);
+    padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  #sensorBar .label{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  #sensorMeter{flex:1;height:8px;background:#fde68a;border-radius:4px;overflow:hidden;}
+  #sensorFill{height:100%;background:var(--accent);border-radius:4px;transition:width .05s;width:0%;}
+  #sensorVal{font-size:.75rem;font-family:monospace;color:var(--accent);min-width:40px;text-align:right;}
+  button.ctrl{background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;
+    padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;}
+  button.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+  button.ctrl.connected{border-color:var(--success);color:var(--success);}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(255,255,255,.92);z-index:10;flex-direction:column;gap:12px;padding:24px;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-size:1.4rem;font-weight:800;color:var(--accent);text-align:center;line-height:1.3;}
+  .overlay .sub{color:var(--muted);font-size:.83rem;text-align:center;line-height:1.85;max-width:300px;}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;
+    padding:11px 30px;font-size:.95rem;font-weight:700;cursor:pointer;}
+  .btn:hover{opacity:.85;}
+  #settPanel{position:absolute;top:0;right:0;bottom:0;width:min(280px,100%);
+    background:var(--panel);border-left:1px solid var(--border);z-index:20;
+    padding:20px;overflow-y:auto;transform:translateX(100%);transition:transform .3s;}
+  #settPanel.open{transform:translateX(0);}
+  #settPanel h3{color:var(--accent);margin-bottom:18px;font-size:1rem;}
+  .srow{margin-bottom:16px;}
+  .srow label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;}
+  .srow input[type=range]{width:100%;accent-color:var(--accent);}
+  .srow select{width:100%;background:#f9fafb;border:1px solid var(--border);color:var(--text);
+    border-radius:8px;padding:8px 10px;}
+  .testbox{background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:14px;margin-bottom:16px;text-align:center;}
+  .testbox .bigv{font-size:2.5rem;font-weight:900;font-family:monospace;color:var(--accent);line-height:1;}
+  .testbox .hint{font-size:.72rem;color:var(--muted);margin-top:4px;}
+  .jump-ind{display:none;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:.75rem;margin-top:8px;
+    background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:var(--accent);}
+  .jump-ind.show{display:inline-flex;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div style="display:flex;gap:14px;align-items:center">
+    <div class="stat"><div class="label">점수</div><div class="value" id="scoreDisp">0</div></div>
+    <div class="stat"><div class="label">최고</div><div class="value" id="hiDisp">0</div></div>
+    <div id="timerWrap">
+      <div class="label" style="font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px">남은시간</div>
+      <div class="value" id="timerDisp" style="color:var(--accent)">60</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:4px">
+    <button class="ctrl" id="hcToggle" onclick="toggleHC()">☀️</button>
+    <button class="ctrl" id="settBtn">⚙️</button>
+  </div>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+
+  <div class="overlay" id="startPanel">
+    <div style="font-size:2.8rem">🍌</div>
+    <h2>바나나 달리기</h2>
+    <div class="sub">
+      밝기 센서를 손으로 가리고 있다가<br>
+      <strong style="color:var(--accent)">손을 떼는 순간</strong> → 점프! 🦘<br>
+      바나나 🍌 = <strong style="color:#f59e0b">+3점</strong>  사과 🍎 = <strong style="color:#6b7280">0점</strong><br>
+      60초 동안 바나나를 최대한 모으세요!<br>
+      <span style="font-size:.72rem;opacity:.6">키보드 Space / ↑ 로도 점프 가능</span>
+    </div>
+    <button class="btn" id="startBtn">달려! 🍌</button>
+  </div>
+
+  <div class="overlay hidden" id="overPanel">
+    <div style="font-size:2.4rem">🍌</div>
+    <h2>시간 종료!</h2>
+    <div style="font-size:2.2rem;font-weight:900;color:var(--accent)" id="finalDisp">0점</div>
+    <div class="sub" id="overMsg">바나나를 잡았어요!</div>
+    <button class="btn" id="restartBtn">다시 달리기! 🍌</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem;margin-top:6px">← 목록으로</a>
+  </div>
+</div>
+
+<div id="sensorBar">
+  <span class="label">밝기</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">—</span>
+  <button class="ctrl" id="connectBtn">🔌 연결</button>
+</div>
+
+<div id="settPanel">
+  <h3>⚙️ 센서 · 입력 설정</h3>
+  <div class="testbox">
+    <div class="bigv" id="tBigV">—</div>
+    <div class="hint">현재 밝기 센서 값 (0~1023)</div>
+    <div style="height:10px;background:#fde68a;border-radius:5px;overflow:hidden;margin-top:8px">
+      <div id="tBar" style="height:100%;background:var(--accent);border-radius:5px;transition:width .05s;width:0%"></div>
+    </div>
+    <div class="jump-ind" id="jumpInd">🦘 손 떼면 점프!</div>
+  </div>
+  <div class="srow">
+    <label>입력 모드: <strong id="inputModeLabel">둘 다</strong></label>
+    <select id="inputModeSelect">
+      <option value="both">센서 + 키보드 둘 다</option>
+      <option value="sensor">센서만 사용</option>
+      <option value="keyboard">키보드만 사용</option>
+    </select>
+  </div>
+  <div class="srow">
+    <label>점프 임계값: <strong id="thrLabel">300</strong></label>
+    <input type="range" id="thrSlider" min="0" max="1023" value="300">
+    <div style="font-size:.72rem;color:var(--muted);margin-top:6px">
+      ⚠️ 이 게임은 <strong>손을 떼는 순간</strong>(어두움→밝음) 점프합니다!
+    </div>
+  </div>
+  <button class="btn" id="closeSett" style="width:100%">닫기</button>
+</div>
+
+<script src="js/serial.js"></script>
+<script>
+// ── 고대비 ────────────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  document.getElementById('hcToggle').textContent = hcMode ? '🌙' : '☀️';
+}
+function toggleHC() { hcMode = !hcMode; localStorage.setItem('hc_mode', hcMode ? '1' : '0'); applyHC(); }
+applyHC();
+
+// ── Canvas ────────────────────────────────────
+const canvas = document.getElementById('gc');
+const ctx    = canvas.getContext('2d');
+const wrap   = document.getElementById('gameWrap');
+function resize() { canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight; }
+resize(); window.addEventListener('resize', resize);
+
+// ── Serial ────────────────────────────────────
+const serial = new SerialManager();
+let sensorVal = 1023; // start uncovered
+serial.onData(v => {
+  sensorVal = v;
+  const pct = (v / 1023) * 100;
+  const bright = v >= cfg.threshold;
+  document.getElementById('sensorFill').style.width      = pct + '%';
+  document.getElementById('sensorFill').style.background = bright ? '#f59e0b' : '#34d399';
+  document.getElementById('sensorVal').textContent       = Math.round(v);
+  document.getElementById('tBigV').textContent           = Math.round(v);
+  document.getElementById('tBar').style.width            = pct + '%';
+  document.getElementById('jumpInd').classList.toggle('show', !bright);
+});
+serial.onConnect(() => { document.getElementById('connectBtn').textContent = '🔴 연결됨'; document.getElementById('connectBtn').classList.add('connected'); });
+serial.onDisconnect(() => { document.getElementById('connectBtn').textContent = '🔌 연결'; document.getElementById('connectBtn').classList.remove('connected'); sensorVal = 1023; });
+
+// ── Config ────────────────────────────────────
+const cfg = { threshold: 300, inputMode: 'both' };
+const LB_KEY = 'bananarunner_hi';
+function getHi() { return +localStorage.getItem(LB_KEY) || 0; }
+function saveHi(s) { if (s > getHi()) localStorage.setItem(LB_KEY, s); }
+
+// ── Constants ─────────────────────────────────
+const PLAYER_SX = 100;   // fixed screen X
+const GRAVITY   = 0.52;
+const JUMP_VY   = -13.5;
+const GAME_SEC  = 60;
+
+// Ground and fruit heights (set in init to use canvas.height)
+let GROUND_Y, FRUIT_Y;
+
+// ── State ─────────────────────────────────────
+let state = 'menu';
+let score = 0, frame = 0;
+let timeLeft = GAME_SEC;
+let lastSecFrame = 0;
+let fruits = [], particles = [], clouds = [];
+let prevBright = true; // assume sensor starts uncovered
+let jumpKeyPressed = false;
+
+// ── Player ────────────────────────────────────
+const player = { y: 0, vy: 0, grounded: true };
+
+// ── Clouds ────────────────────────────────────
+function initClouds() {
+  clouds = Array.from({ length: 5 }, (_, i) => ({
+    x: (i / 5) * canvas.width + Math.random() * 80,
+    y: canvas.height * (0.05 + Math.random() * 0.2),
+    w: 80 + Math.random() * 60, h: 30 + Math.random() * 20,
+    spd: 0.4 + Math.random() * 0.4,
+  }));
+}
+
+// ── Init ──────────────────────────────────────
+function initGame() {
+  GROUND_Y = canvas.height * 0.70;
+  FRUIT_Y  = canvas.height * 0.32;
+  score = 0; frame = 0; timeLeft = GAME_SEC; lastSecFrame = 0;
+  fruits = []; particles = [];
+  initClouds();
+  player.y = GROUND_Y - 44; // character height ~44
+  player.vy = 0; player.grounded = true;
+  prevBright = (sensorVal >= cfg.threshold);
+  jumpKeyPressed = false;
+  document.getElementById('scoreDisp').textContent = 0;
+  document.getElementById('timerDisp').textContent = GAME_SEC;
+  document.getElementById('hiDisp').textContent = getHi();
+}
+
+// ── Fruit Spawner ─────────────────────────────
+let fruitTimer = 0;
+function spawnFruit() {
+  const isBanana = Math.random() < 0.55;
+  fruits.push({
+    x: canvas.width + 60,
+    y: FRUIT_Y + (Math.random() - 0.5) * canvas.height * 0.08,
+    type: isBanana ? 'banana' : 'apple',
+    collected: false, missed: false,
+  });
+}
+
+// ── Update ────────────────────────────────────
+function update() {
+  if (state !== 'playing') return;
+  frame++;
+  fruitTimer++;
+
+  // Timer
+  if (frame - lastSecFrame >= 60) {
+    lastSecFrame = frame;
+    timeLeft = Math.max(0, timeLeft - 1);
+    document.getElementById('timerDisp').textContent = timeLeft;
+    if (timeLeft <= 0) { endGame(); return; }
+  }
+
+  // ── Jump input: sensor UNCOVER (dark→bright edge) = jump ──
+  const useS = cfg.inputMode === 'sensor' || cfg.inputMode === 'both';
+  const useK = cfg.inputMode === 'keyboard' || cfg.inputMode === 'both';
+  const currentBright = useS ? sensorVal >= cfg.threshold : false;
+  const justUncovered = useS && currentBright && !prevBright; // was dark, now bright = JUMP
+  prevBright = currentBright;
+
+  if ((justUncovered || (useK && jumpKeyPressed)) && player.grounded) {
+    player.vy = JUMP_VY;
+    player.grounded = false;
+  }
+  jumpKeyPressed = false;
+
+  // Physics
+  if (!player.grounded) {
+    player.vy += GRAVITY;
+    player.y += player.vy;
+    if (player.y >= GROUND_Y - 44) {
+      player.y = GROUND_Y - 44;
+      player.vy = 0;
+      player.grounded = true;
+    }
+  }
+
+  // Spawn fruits
+  const interval = Math.max(55, 110 - Math.floor((GAME_SEC - timeLeft) * 0.8));
+  if (fruitTimer >= interval) { spawnFruit(); fruitTimer = 0; }
+
+  // Move fruits & collision
+  const playerCenterY = player.y + 22; // center of player
+  for (const f of fruits) {
+    if (f.collected || f.missed) continue;
+    f.x -= 3.5;
+    if (f.x < -60) { f.missed = true; continue; }
+    // Collision: check if player overlaps fruit
+    const dx = Math.abs(f.x - PLAYER_SX);
+    const dy = Math.abs(f.y - playerCenterY);
+    if (dx < 32 && dy < 28) {
+      f.collected = true;
+      if (f.type === 'banana') {
+        score += 3;
+        document.getElementById('scoreDisp').textContent = score;
+        spawnCollectParticles(PLAYER_SX, f.y, '#fbbf24');
+      } else {
+        spawnCollectParticles(PLAYER_SX, f.y, '#ef4444');
+      }
+    }
+  }
+  fruits = fruits.filter(f => !f.missed && f.x > -60);
+
+  // Clouds
+  for (const c of clouds) { c.x -= c.spd; if (c.x + c.w < 0) c.x = canvas.width + 20; }
+
+  // Particles
+  for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.alpha -= 0.03; p.life--; }
+  particles = particles.filter(p => p.life > 0);
+}
+
+// ── Particles ─────────────────────────────────
+function spawnCollectParticles(x, y, color) {
+  for (let i = 0; i < 12; i++) {
+    const ang = Math.random() * Math.PI * 2, spd = 2 + Math.random() * 4;
+    particles.push({ x, y, vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd - 2,
+      alpha:1, r:3+Math.random()*4, life:20+Math.random()*15, color });
+  }
+}
+
+function endGame() {
+  state = 'gameover';
+  saveHi(score);
+  document.getElementById('finalDisp').textContent = score + '점';
+  const bananas = Math.floor(score / 3);
+  document.getElementById('overMsg').textContent =
+    `바나나 ${bananas}개 잡았어요!${score >= getHi() && score > 0 ? ' 🏆 신기록!' : ''}`;
+  document.getElementById('hiDisp').textContent = getHi();
+  showPanel('overPanel');
+}
+
+// ── Draw ──────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawBackground();
+  if (state === 'menu') return;
+  for (const f of fruits) if (!f.collected) drawFruit(f);
+  for (const p of particles) {
+    ctx.save(); ctx.globalAlpha = Math.max(0, p.alpha);
+    ctx.shadowColor = p.color; ctx.shadowBlur = 6;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+  drawCharacter(PLAYER_SX, player.y + 44); // pass foot Y
+}
+
+// ── Background ────────────────────────────────
+function drawBackground() {
+  if (hcMode) {
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  } else {
+    // Sky
+    const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y || canvas.height * 0.7);
+    sky.addColorStop(0, '#7dd3fc'); sky.addColorStop(1, '#bfdbfe');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Clouds
+    for (const c of clouds) {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath(); ctx.ellipse(c.x+c.w/2, c.y, c.w/2, c.h/2, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(c.x+c.w*0.3, c.y-c.h*0.3, c.w*0.3, c.h*0.55, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(c.x+c.w*0.7, c.y-c.h*0.2, c.w*0.28, c.h*0.5, 0, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  if (!GROUND_Y) return;
+  // Ground strip (grass)
+  const gg = ctx.createLinearGradient(0, GROUND_Y, 0, GROUND_Y+30);
+  gg.addColorStop(0, '#4ade80'); gg.addColorStop(1, '#16a34a');
+  ctx.fillStyle = gg; ctx.fillRect(0, GROUND_Y, canvas.width, 30);
+  // Sandy below
+  const sb = ctx.createLinearGradient(0, GROUND_Y+30, 0, canvas.height);
+  sb.addColorStop(0, '#fde68a'); sb.addColorStop(1, '#fbbf24');
+  ctx.fillStyle = sb; ctx.fillRect(0, GROUND_Y+30, canvas.width, canvas.height - GROUND_Y - 30);
+  // Ocean waves at bottom
+  const waveY = canvas.height * 0.85;
+  ctx.fillStyle = '#38bdf8';
+  ctx.beginPath(); ctx.moveTo(0, waveY);
+  for (let x = 0; x <= canvas.width; x += 8) {
+    ctx.lineTo(x, waveY + Math.sin((x + frame * 1.5) * 0.035) * 7);
+  }
+  ctx.lineTo(canvas.width, canvas.height); ctx.lineTo(0, canvas.height); ctx.closePath(); ctx.fill();
+  // Fruit "zone" hint line (faint dotted)
+  if (state === 'playing') {
+    ctx.save(); ctx.strokeStyle = 'rgba(251,191,36,0.25)'; ctx.lineWidth=1.5; ctx.setLineDash([6,8]);
+    ctx.beginPath(); ctx.moveTo(0, FRUIT_Y); ctx.lineTo(canvas.width, FRUIT_Y); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+  }
+}
+
+// ── Fruit Draw ────────────────────────────────
+function drawFruit(f) {
+  ctx.save(); ctx.translate(f.x, f.y);
+  if (f.type === 'banana') {
+    ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 12;
+    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(0, 0, 18, -0.4, Math.PI * 0.9); ctx.stroke();
+    ctx.strokeStyle = '#fcd34d'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(0, 0, 14, -0.2, Math.PI * 0.75); ctx.stroke();
+    // Tip
+    ctx.shadowBlur = 0; ctx.fillStyle = '#92400e';
+    ctx.beginPath(); ctx.arc(-2, -17, 3, 0, Math.PI*2); ctx.fill();
+  } else {
+    ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 10;
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath(); ctx.arc(3, -3, 6, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#92400e'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0,-15); ctx.lineTo(2,-22); ctx.stroke();
+    ctx.fillStyle = '#16a34a';
+    ctx.beginPath(); ctx.ellipse(5,-20,7,4,-0.6,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ── Character Draw ────────────────────────────
+function drawCharacter(screenX, footY) {
+  const cx = screenX, fy = footY;
+  const runPhase = player.grounded ? frame * 0.28 : Math.PI / 4;
+  const legSwing = Math.sin(runPhase) * 9;
+  ctx.save();
+  ctx.translate(cx, fy);
+  // Legs
+  ctx.fillStyle = '#ea580c';
+  ctx.save(); ctx.translate(-5,-3); ctx.rotate(legSwing*0.07);
+  ctx.beginPath(); ctx.roundRect(-3.5,0,7,16,3); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.translate(5,-3); ctx.rotate(-legSwing*0.07);
+  ctx.beginPath(); ctx.roundRect(-3.5,0,7,16,3); ctx.fill(); ctx.restore();
+  // Shoes
+  ctx.fillStyle = '#c2410c';
+  ctx.beginPath(); ctx.ellipse(-5+Math.sin(runPhase)*2, 14, 6,4,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(5-Math.sin(runPhase)*2, 14, 6,4,0,0,Math.PI*2); ctx.fill();
+  // Body
+  ctx.shadowColor = '#f97316'; ctx.shadowBlur = 8;
+  ctx.fillStyle = '#f97316';
+  ctx.beginPath(); ctx.ellipse(0,-20,14,18,0,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Arms
+  ctx.fillStyle = '#fb923c';
+  ctx.save(); ctx.translate(-11,-16); ctx.rotate(legSwing*0.06);
+  ctx.beginPath(); ctx.ellipse(0,0,5,11,0.3,0,Math.PI*2); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.translate(11,-16); ctx.rotate(-legSwing*0.06);
+  ctx.beginPath(); ctx.ellipse(0,0,5,11,-0.3,0,Math.PI*2); ctx.fill(); ctx.restore();
+  // Head
+  ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 6;
+  ctx.fillStyle = '#fbbf24';
+  ctx.beginPath(); ctx.arc(0,-40,14,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Ears (rabbit ears)
+  ctx.fillStyle = '#fde68a';
+  ctx.beginPath(); ctx.ellipse(-7,-55,5,10,-.2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(7,-55,5,10,.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fda4af';
+  ctx.beginPath(); ctx.ellipse(-7,-55,2.5,6,-.2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(7,-55,2.5,6,.2,0,Math.PI*2); ctx.fill();
+  // Eyes
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath(); ctx.arc(-5,-41,3,0,Math.PI*2); ctx.arc(5,-41,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath(); ctx.arc(-4,-43,1.2,0,Math.PI*2); ctx.arc(6,-43,1.2,0,Math.PI*2); ctx.fill();
+  // Mouth
+  ctx.strokeStyle = '#92400e'; ctx.lineWidth=1.5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.arc(0,-38,3.5,0.2,Math.PI-0.2); ctx.stroke();
+  ctx.restore();
+}
+
+// ── Game Loop ─────────────────────────────────
+function loop() { requestAnimationFrame(loop); update(); draw(); }
+loop();
+
+// ── UI ────────────────────────────────────────
+function showPanel(id) {
+  ['startPanel','overPanel'].forEach(p => document.getElementById(p).classList.toggle('hidden', p !== id));
+}
+function hideAllPanels() { ['startPanel','overPanel'].forEach(p => document.getElementById(p).classList.add('hidden')); }
+
+function startGame() { initGame(); state = 'playing'; hideAllPanels(); }
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+
+// ── Input ─────────────────────────────────────
+window.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+    e.preventDefault(); jumpKeyPressed = true;
+    if (state !== 'playing') startGame();
+  }
+});
+canvas.addEventListener('pointerdown', e => {
+  e.preventDefault(); jumpKeyPressed = true;
+  if (state !== 'playing') startGame();
+});
+
+// ── Serial ────────────────────────────────────
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) await serial.disconnect();
+  else try { await serial.connect(); } catch (e) { alert(e.message); }
+});
+
+// ── Settings ──────────────────────────────────
+document.getElementById('settBtn').addEventListener('click', () => document.getElementById('settPanel').classList.toggle('open'));
+document.getElementById('closeSett').addEventListener('click', () => document.getElementById('settPanel').classList.remove('open'));
+document.getElementById('thrSlider').addEventListener('input', e => {
+  cfg.threshold = +e.target.value;
+  document.getElementById('thrLabel').textContent = cfg.threshold;
+});
+document.getElementById('inputModeSelect').addEventListener('change', e => {
+  cfg.inputMode = e.target.value;
+  document.getElementById('inputModeLabel').textContent = {sensor:'센서',keyboard:'키보드',both:'둘 다'}[cfg.inputMode];
+});
+
+document.getElementById('hiDisp').textContent = getHi();
+</script>
+</body>
+</html>

@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>외계인 슈팅 게임</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#050a14;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:100vh; font-family:'Segoe UI', sans-serif; overflow:hidden;
+  }
+  #ui {
+    display:flex; align-items:center; gap:18px;
+    margin-bottom:10px; flex-wrap:wrap; justify-content:center;
+  }
+  .badge {
+    background:rgba(0,255,180,0.12); border:1.5px solid #00ffb4;
+    color:#00ffb4; padding:6px 16px; border-radius:20px; font-size:1rem; font-weight:700;
+    letter-spacing:0.04em;
+  }
+  .badge span { color:#fff; }
+  #lives-disp { color:#ff4466; font-size:1.2rem; }
+  #canvas { border-radius:10px; display:block; background:#050a14; }
+  #overlay {
+    position:fixed; inset:0; background:rgba(5,10,20,0.92);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:16px; z-index:10;
+  }
+  #overlay h1 { font-size:2.4rem; color:#00ffb4; letter-spacing:0.06em; }
+  #overlay p  { color:#aee; font-size:1.1rem; max-width:460px; text-align:center; line-height:1.7; }
+  #overlay .sub { color:#7ae; font-size:0.95rem; }
+  .btn {
+    margin-top:10px; padding:14px 44px; border-radius:30px; border:none; cursor:pointer;
+    font-size:1.15rem; font-weight:700; letter-spacing:0.06em;
+    background:linear-gradient(135deg,#00ffb4,#00aaff); color:#050a14;
+    box-shadow:0 0 24px #00ffb466; transition:opacity .15s;
+  }
+  .btn:hover { opacity:.85; }
+  #serial-btn {
+    position:fixed; top:14px; right:16px;
+    padding:8px 20px; border-radius:20px; border:none; cursor:pointer;
+    background:rgba(0,255,180,0.12); color:#00ffb4; font-size:.92rem; font-weight:700;
+    border:1.5px solid #00ffb4; transition:background .15s;
+  }
+  #serial-btn:hover { background:rgba(0,255,180,0.25); }
+  #serial-status { font-size:.78rem; color:#00ffb4aa; margin-top:3px; text-align:right; }
+  #back-link {
+    position:fixed; top:14px; left:16px;
+    color:#00ffb4; text-decoration:none; font-size:.9rem; font-weight:700;
+    background:rgba(0,255,180,0.08); border:1.5px solid rgba(0,255,180,0.55);
+    border-radius:20px; padding:8px 16px;
+  }
+  #back-link:hover { background:rgba(0,255,180,0.18); }
+  body.hc { background:#000; }
+  body.hc #canvas { filter:contrast(1.3) brightness(1.2); }
+</style>
+</head>
+<body>
+
+<a id="back-link" href="index.html">← 목록</a>
+
+<div id="ui">
+  <div class="badge">라운드 <span id="disp-round">1</span>/5</div>
+  <div class="badge">격추 <span id="disp-score">0</span></div>
+  <div class="badge" id="lives-disp">❤️ <span id="disp-lives">3</span></div>
+  <div class="badge">최고 <span id="disp-hi">—</span></div>
+</div>
+<canvas id="canvas"></canvas>
+
+<div id="overlay">
+  <h1>👽 외계인 슈팅</h1>
+  <p>밝기 센서를 <strong>가리면</strong> 총알이 발사돼요!<br>
+     총구는 자동으로 위아래 움직여요.<br>
+     외계인이 오른쪽에 닿으면 목숨을 잃어요.</p>
+  <p class="sub">5라운드를 모두 클리어하세요!</p>
+  <button class="btn" id="start-btn">시작하기</button>
+</div>
+
+<button id="serial-btn">🔌 센서 연결</button>
+<div id="serial-status">연결 안 됨</div>
+
+<script src="js/serial.js"></script>
+<script>
+// ── canvas setup ──────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+const W = 720, H = 480;
+canvas.width = W; canvas.height = H;
+
+// ── serial ────────────────────────────────────────────────────
+const sm = new SerialManager();
+let sensorVal = 1023;
+let connected = false;
+sm.onData(v => { sensorVal = v; });
+sm.onConnect(() => {
+  connected = true;
+  document.getElementById('serial-status').textContent = '✅ 연결됨';
+  document.getElementById('serial-btn').textContent = '🔴 연결됨';
+});
+sm.onDisconnect(() => {
+  connected = false;
+  sensorVal = 1023;
+  document.getElementById('serial-status').textContent = '연결 안 됨';
+  document.getElementById('serial-btn').textContent = '🔌 센서 연결';
+});
+document.getElementById('serial-btn').addEventListener('click', async () => {
+  if (sm.active) await sm.disconnect();
+  else try { await sm.connect(); } catch (e) { alert(e.message); }
+});
+
+// ── constants ─────────────────────────────────────────────────
+const THRESHOLD   = 300;
+const GUN_X       = W - 60;
+const GUN_SWEEP_H = H * 0.55;
+const GUN_CY      = H * 0.5;
+const BULLET_SPEED= 9;
+const ALIEN_SPEEDS = [1.2, 1.6, 2.0, 2.5, 3.1];  // per round
+const ROUND_ALIENS = [10, 20, 30, 40, 50];
+const FIRE_INTERVAL= 10; // frames between bullets when firing
+
+// ── state ─────────────────────────────────────────────────────
+let state = 'title'; // title | play | win | lose
+let round, lives, score, hiScore;
+let gunY, gunT;
+let bullets, aliens, alienQueue;
+let spawnTimer, fireCooldown;
+let prevCovered, frame;
+let fireKeyHeld = false;
+
+function loadHi() {
+  hiScore = +localStorage.getItem('alienshoot_hi') || 0;
+  const d = document.getElementById('disp-hi');
+  d.textContent = hiScore > 0 ? hiScore + '격추' : '—';
+}
+loadHi();
+
+function saveHi() {
+  if (score > hiScore) {
+    hiScore = score;
+    localStorage.setItem('alienshoot_hi', hiScore);
+    loadHi();
+  }
+}
+
+// ── init ──────────────────────────────────────────────────────
+function initGame() {
+  round = 1; lives = 3; score = 0;
+  gunY  = GUN_CY; gunT = 0;
+  bullets = []; aliens = [];
+  buildQueue();
+  spawnTimer  = 0;
+  fireCooldown = 0;
+  prevCovered  = false;
+  frame        = 0;
+  fireKeyHeld  = false;
+  updateUI();
+}
+
+function buildQueue() {
+  alienQueue = ROUND_ALIENS[round - 1];
+}
+
+function updateUI() {
+  document.getElementById('disp-round').textContent = round;
+  document.getElementById('disp-score').textContent = score;
+  document.getElementById('disp-lives').textContent = lives;
+}
+
+// ── alien factory ─────────────────────────────────────────────
+function spawnAlien() {
+  if (alienQueue <= 0) return;
+  alienQueue--;
+  const size = 28 + Math.random() * 16;
+  aliens.push({
+    x: -size,
+    y: H * 0.1 + Math.random() * H * 0.78,
+    size,
+    spd: ALIEN_SPEEDS[round - 1] * (0.85 + Math.random() * 0.35),
+    hp: round >= 4 ? 2 : 1,
+    hit: 0,   // flash timer
+    color: `hsl(${80 + Math.round(Math.random()*120)},90%,55%)`
+  });
+}
+
+// ── drawing helpers ───────────────────────────────────────────
+function drawStars(fr) {
+  ctx.save();
+  for (let i = 0; i < 80; i++) {
+    const sx = ((i * 173 + fr * 0.15) % W);
+    const sy = (i * 97 + i * 53) % H;
+    const r  = 0.5 + (i % 3) * 0.6;
+    const a  = 0.4 + 0.6 * Math.abs(Math.sin(fr * 0.02 + i));
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawPlanets() {
+  // small planet top-left
+  ctx.save();
+  ctx.globalAlpha = 0.25;
+  const g1 = ctx.createRadialGradient(90, 70, 0, 90, 70, 55);
+  g1.addColorStop(0, '#4488ff');
+  g1.addColorStop(1, '#0011aa');
+  ctx.fillStyle = g1;
+  ctx.beginPath(); ctx.arc(90, 70, 55, 0, Math.PI*2); ctx.fill();
+  // ring
+  ctx.strokeStyle = '#6699ff'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.ellipse(90, 70, 80, 14, -0.35, 0, Math.PI*2); ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawGun(gy) {
+  const x = GUN_X;
+  ctx.save();
+  ctx.translate(x, gy);
+
+  // body
+  const bg = ctx.createLinearGradient(-18, -14, 18, 14);
+  bg.addColorStop(0, '#aaddff');
+  bg.addColorStop(1, '#2255aa');
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.roundRect(-18, -14, 36, 28, 6);
+  ctx.fill();
+
+  // barrel pointing left
+  ctx.fillStyle = '#88ccff';
+  ctx.fillRect(-46, -5, 30, 10);
+
+  // glow at barrel tip
+  const glow = ctx.createRadialGradient(-47, 0, 0, -47, 0, 14);
+  glow.addColorStop(0, 'rgba(0,255,255,0.8)');
+  glow.addColorStop(1, 'rgba(0,255,255,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(-47, 0, 14, 0, Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+function drawBullet(b) {
+  ctx.save();
+  ctx.shadowColor = '#00ffff'; ctx.shadowBlur = 12;
+  ctx.fillStyle = '#00ffff';
+  ctx.beginPath(); ctx.ellipse(b.x, b.y, 10, 4, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawAlien(a) {
+  ctx.save();
+  ctx.translate(a.x, a.y);
+
+  if (a.hit > 0) {
+    ctx.globalAlpha = 0.4 + 0.6 * ((a.hit % 4) < 2 ? 1 : 0);
+  }
+
+  const r = a.size / 2;
+
+  // body (ellipse)
+  ctx.fillStyle = a.color;
+  ctx.beginPath(); ctx.ellipse(0, r * 0.3, r * 0.9, r * 0.7, 0, 0, Math.PI*2); ctx.fill();
+
+  // head (circle)
+  ctx.fillStyle = a.color;
+  ctx.beginPath(); ctx.arc(0, -r * 0.35, r * 0.65, 0, Math.PI*2); ctx.fill();
+
+  // eyes
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(-r*0.25, -r*0.4, r*0.18, r*0.22, -0.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( r*0.25, -r*0.4, r*0.18, r*0.22,  0.2, 0, Math.PI*2); ctx.fill();
+  // pupils
+  ctx.fillStyle = '#ff0';
+  ctx.beginPath(); ctx.arc(-r*0.25, -r*0.4, r*0.08, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( r*0.25, -r*0.4, r*0.08, 0, Math.PI*2); ctx.fill();
+
+  // antennae
+  ctx.strokeStyle = a.color; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-r*0.3, -r); ctx.lineTo(-r*0.5, -r*1.5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( r*0.3, -r); ctx.lineTo( r*0.5, -r*1.5); ctx.stroke();
+  // tip dots
+  ctx.fillStyle = '#ff55ff';
+  ctx.beginPath(); ctx.arc(-r*0.5, -r*1.5, r*0.14, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( r*0.5, -r*1.5, r*0.14, 0, Math.PI*2); ctx.fill();
+
+  // legs
+  ctx.strokeStyle = a.color; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(-r*0.4, r); ctx.lineTo(-r*0.6, r*1.6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( r*0.4, r); ctx.lineTo( r*0.6, r*1.6); ctx.stroke();
+
+  // hp bar for 2-hp aliens
+  if (a.hp === 2) {
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = '#300';
+    ctx.fillRect(-r*0.8, -r*1.8, r*1.6, 6);
+    ctx.fillStyle = '#0f0';
+    ctx.fillRect(-r*0.8, -r*1.8, r*1.6, 6);
+  }
+
+  ctx.restore();
+}
+
+// ── round / win / lose overlays ───────────────────────────────
+function showOverlay(title, body, btnLabel) {
+  const ov = document.getElementById('overlay');
+  ov.innerHTML = `
+    <h1>${title}</h1>
+    <p>${body}</p>
+    <button class="btn" id="ov-btn">${btnLabel}</button>
+  `;
+  ov.style.display = 'flex';
+  document.getElementById('ov-btn').addEventListener('click', () => {
+    ov.style.display = 'none';
+    if (state === 'win' || state === 'lose') {
+      initGame();
+      state = 'play';
+    } else if (state === 'nextround') {
+      round++;
+      buildQueue();
+      aliens = []; bullets = [];
+      spawnTimer = 0;
+      state = 'play';
+      updateUI();
+    }
+  });
+}
+
+// ── main loop ─────────────────────────────────────────────────
+let raf;
+function loop() {
+  raf = requestAnimationFrame(loop);
+  frame++;
+
+  // ── background ─────────────────────
+  ctx.fillStyle = '#050a14';
+  ctx.fillRect(0, 0, W, H);
+  drawStars(frame);
+  drawPlanets();
+
+  // right wall danger zone
+  ctx.fillStyle = 'rgba(255,50,50,0.06)';
+  ctx.fillRect(GUN_X - 10, 0, W - GUN_X + 10, H);
+  ctx.strokeStyle = 'rgba(255,80,80,0.25)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 6]);
+  ctx.beginPath(); ctx.moveTo(GUN_X - 10, 0); ctx.lineTo(GUN_X - 10, H); ctx.stroke();
+  ctx.setLineDash([]);
+
+  if (state !== 'play') {
+    drawGun(gunY);
+    return;
+  }
+
+  // ── sensor ─────────────────────────
+  const covered = sensorVal < THRESHOLD;
+  const isFiring = covered;
+
+  // keyboard fallback
+  const kFire = fireKeyHeld;
+
+  // ── gun sweep ──────────────────────
+  gunT += 0.035;
+  gunY = GUN_CY + Math.sin(gunT) * GUN_SWEEP_H * 0.5;
+
+  // ── fire bullets ───────────────────
+  if (isFiring || kFire) {
+    if (fireCooldown <= 0) {
+      bullets.push({ x: GUN_X - 48, y: gunY });
+      fireCooldown = FIRE_INTERVAL;
+    }
+  }
+  if (fireCooldown > 0) fireCooldown--;
+
+  // ── spawn aliens ───────────────────
+  if (alienQueue > 0) {
+    spawnTimer--;
+    if (spawnTimer <= 0) {
+      spawnAlien();
+      // spacing decreases each round
+      spawnTimer = Math.max(28, 80 - round * 12);
+    }
+  }
+
+  // ── move bullets ───────────────────
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    bullets[i].x -= BULLET_SPEED;
+    if (bullets[i].x < -20) bullets.splice(i, 1);
+  }
+
+  // ── move aliens ────────────────────
+  for (let i = aliens.length - 1; i >= 0; i--) {
+    const a = aliens[i];
+    a.x += a.spd;
+    if (a.hit > 0) a.hit--;
+
+    // reached right wall
+    if (a.x > GUN_X - 10) {
+      aliens.splice(i, 1);
+      lives--;
+      updateUI();
+      if (lives <= 0) {
+        state = 'lose';
+        saveHi();
+        showOverlay('💀 게임 오버', `${score}마리 격추! 최고기록: ${hiScore}격추<br>다시 도전해볼까요?`, '다시 시작');
+      }
+      continue;
+    }
+
+    // bullet collision
+    for (let j = bullets.length - 1; j >= 0; j--) {
+      const b = bullets[j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      if (dx * dx + dy * dy < (a.size * 0.65) ** 2) {
+        bullets.splice(j, 1);
+        a.hp--;
+        a.hit = 8;
+        if (a.hp <= 0) {
+          aliens.splice(i, 1);
+          score++;
+          updateUI();
+          break;
+        }
+      }
+    }
+  }
+
+  // ── round clear check ─────────────
+  if (alienQueue <= 0 && aliens.length === 0 && state === 'play') {
+    if (round >= 5) {
+      state = 'win';
+      saveHi();
+      showOverlay('🎉 게임 클리어!', `5라운드 완전 클리어!<br>${score}마리 격추! 대단해요! 👽🔫`, '처음부터');
+    } else {
+      state = 'nextround';
+      showOverlay(`✅ 라운드 ${round} 클리어!`, `${score}마리 격추 중!<br>라운드 ${round + 1}을 준비하세요!`, `라운드 ${round + 1} 시작`);
+    }
+  }
+
+  // ── draw ───────────────────────────
+  bullets.forEach(drawBullet);
+  aliens.forEach(drawAlien);
+  drawGun(gunY);
+
+  // firing indicator
+  if (isFiring || kFire) {
+    ctx.save();
+    ctx.globalAlpha = 0.18 + 0.1 * Math.sin(frame * 0.4);
+    ctx.fillStyle = '#00ffff';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = '#00ffff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🔥 발사 중!', GUN_X, H - 16);
+    ctx.restore();
+  }
+
+  // round progress bar
+  const total = ROUND_ALIENS[round - 1];
+  const remaining = aliens.length + alienQueue;
+  const pct = Math.max(0, 1 - remaining / total);
+  ctx.fillStyle = 'rgba(0,255,180,0.12)';
+  ctx.fillRect(10, H - 12, W - 20, 6);
+  ctx.fillStyle = '#00ffb4';
+  ctx.fillRect(10, H - 12, (W - 20) * pct, 6);
+
+  prevCovered = covered;
+}
+
+// ── keyboard ──────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (['Space','KeyZ','KeyX','ControlLeft','ControlRight'].includes(e.code)) {
+    fireKeyHeld = true;
+  }
+});
+document.addEventListener('keyup', e => {
+  if (['Space','KeyZ','KeyX','ControlLeft','ControlRight'].includes(e.code)) {
+    fireKeyHeld = false;
+  }
+});
+
+// touch
+canvas.addEventListener('touchstart', e => { e.preventDefault(); fireKeyHeld = true; }, {passive:false});
+canvas.addEventListener('touchend',   () => { fireKeyHeld = false; });
+
+// ── start button ──────────────────────────────────────────────
+document.getElementById('start-btn').addEventListener('click', () => {
+  document.getElementById('overlay').style.display = 'none';
+  initGame();
+  state = 'play';
+  loop();
+});
+
+// draw title screen
+(function titleDraw() {
+  ctx.fillStyle = '#050a14';
+  ctx.fillRect(0, 0, W, H);
+  drawStars(0);
+  drawPlanets();
+  drawGun(GUN_CY);
+})();
+</script>
+</body>
+</html>

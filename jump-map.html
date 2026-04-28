@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>밝기 센서 점프맵 — EZMaker</title>
+<style>
+  :root{
+    --bg:#06061a;--panel:#0f0f28;--border:#1e1e42;
+    --accent:#f43f5e;--success:#00ff88;--muted:#64748b;--text:#e2e8f0;
+  }
+  body.hc{--bg:#000;--panel:#111;--border:#fff;--text:#fff;--muted:#ddd;}
+  body.hc .overlay{background:rgba(0,0,0,.97);}
+  body.hc #settPanel{background:#111;border-color:#fff;}
+  body.hc .srow select{background:#1a1a1a;border-color:#fff;color:#fff;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:'Segoe UI',system-ui,sans-serif;
+    background:var(--bg);color:var(--text);
+    height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;
+  }
+  #topbar{
+    width:100%;max-width:640px;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);
+    gap:8px;flex-shrink:0;
+  }
+  #topbar a{color:var(--muted);text-decoration:none;font-size:.8rem;}
+  #topbar a:hover{color:var(--accent);}
+  .stat{text-align:center;}
+  .stat .label{font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat .value{font-size:1rem;font-weight:700;color:var(--accent);font-family:monospace;}
+  #progWrap{flex:1;max-width:130px;}
+  #progTrack{height:6px;background:#1a1a3a;border-radius:3px;overflow:hidden;margin-top:4px;}
+  #progFill{height:100%;background:var(--accent);border-radius:3px;transition:width .3s;width:0%;}
+  #gameWrap{position:relative;flex:1;width:100%;max-width:640px;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+  #sensorBar{
+    width:100%;max-width:640px;background:var(--panel);border-top:1px solid var(--border);
+    padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;
+  }
+  #sensorBar .label{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  #sensorMeter{flex:1;height:8px;background:#1a1a3a;border-radius:4px;overflow:hidden;}
+  #sensorFill{height:100%;background:var(--accent);border-radius:4px;transition:width .05s;width:0%;}
+  #sensorVal{font-size:.75rem;font-family:monospace;color:var(--accent);min-width:40px;text-align:right;}
+  button.ctrl{
+    background:none;border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;
+  }
+  button.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+  button.ctrl.connected{border-color:var(--success);color:var(--success);}
+  .overlay{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.88);z-index:10;flex-direction:column;gap:12px;padding:24px;
+  }
+  .overlay.hidden{display:none;}
+  .overlay h2{font-size:1.5rem;font-weight:800;color:var(--accent);text-align:center;}
+  .overlay .sub{
+    color:var(--muted);font-size:.83rem;text-align:center;line-height:1.8;max-width:320px;
+  }
+  .btn{
+    background:var(--accent);color:#fff;border:none;border-radius:8px;
+    padding:10px 28px;font-size:.95rem;font-weight:700;cursor:pointer;min-width:140px;
+  }
+  .btn:hover{opacity:.85;}
+  .diff-row{display:flex;gap:8px;width:100%;max-width:280px;}
+  .diff-btn{
+    flex:1;padding:10px 0;border-radius:8px;border:2px solid transparent;
+    font-size:.82rem;font-weight:700;cursor:pointer;
+    background:rgba(255,255,255,.04);color:var(--muted);
+    transition:border-color .15s,color .15s,background .15s;
+  }
+  .diff-btn.active{border-color:var(--accent);color:var(--text);background:rgba(244,63,94,.1);}
+  .diff-btn:hover:not(.active){border-color:rgba(244,63,94,.4);color:var(--text);}
+  #settPanel{
+    position:absolute;top:0;right:0;bottom:0;width:min(300px,100%);
+    background:var(--panel);border-left:1px solid var(--border);
+    z-index:20;padding:20px;overflow-y:auto;
+    transform:translateX(100%);transition:transform .3s;
+  }
+  #settPanel.open{transform:translateX(0);}
+  #settPanel h3{color:var(--accent);margin-bottom:18px;font-size:1rem;}
+  .srow{margin-bottom:16px;}
+  .srow label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;}
+  .srow input[type=range]{width:100%;accent-color:var(--accent);}
+  .srow select{
+    width:100%;background:#0a0a18;border:1px solid var(--border);
+    color:var(--text);border-radius:8px;padding:8px 10px;
+  }
+  .testbox{
+    background:#0a0a18;border:1px solid var(--border);border-radius:8px;
+    padding:14px;margin-bottom:16px;text-align:center;
+  }
+  .testbox .bigv{font-size:2.5rem;font-weight:900;font-family:monospace;color:var(--accent);line-height:1;}
+  .testbox .hint{font-size:.72rem;color:var(--muted);margin-top:4px;}
+  .jump-ind{
+    display:none;align-items:center;gap:6px;padding:5px 12px;
+    border-radius:20px;font-size:.75rem;margin-top:8px;
+    background:rgba(244,63,94,.15);border:1px solid rgba(244,63,94,.4);color:var(--accent);
+  }
+  .jump-ind.show{display:inline-flex;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div style="display:flex;gap:14px;align-items:center">
+    <div class="stat">
+      <div class="label">체력</div>
+      <div class="value" id="livesDisp">❤️❤️❤️</div>
+    </div>
+    <div id="progWrap" class="stat">
+      <div class="label">진행도 <span id="progText">0/15</span></div>
+      <div id="progTrack"><div id="progFill"></div></div>
+    </div>
+    <div class="stat">
+      <div class="label">최고기록</div>
+      <div class="value" id="hiDisp">—</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:4px">
+    <button class="ctrl" id="hcToggle" onclick="toggleHC()" title="고대비 모드">☀️</button>
+    <button class="ctrl" id="settBtn">⚙️</button>
+  </div>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+
+  <!-- 시작 화면 -->
+  <div class="overlay" id="startPanel">
+    <h2>🏙️ 밝기 센서 점프맵</h2>
+    <div class="sub">
+      밝기 센서를 손으로 <strong style="color:var(--accent)">가리면</strong> 점프!<br>
+      손을 <strong style="color:var(--accent)">떼면</strong> 점프 안 해요.<br>
+      빌딩을 뛰어넘어 끝까지 클리어하세요!<br>
+      <span style="font-size:.73rem;opacity:.65">키보드 W · Space · ↑ 로도 점프 가능</span>
+    </div>
+    <div style="text-align:center;font-size:.78rem;color:var(--muted);margin-bottom:2px">난이도 선택</div>
+    <div class="diff-row">
+      <button class="diff-btn" data-diff="easy"   onclick="setDiff('easy')"  >🟢 쉬움</button>
+      <button class="diff-btn active" data-diff="normal" onclick="setDiff('normal')">🟡 보통</button>
+      <button class="diff-btn" data-diff="hard"   onclick="setDiff('hard')"  >🔴 어려움</button>
+    </div>
+    <button class="btn" id="startBtn">시작</button>
+  </div>
+
+  <!-- 게임 오버 -->
+  <div class="overlay hidden" id="overPanel">
+    <h2>💥 게임 오버</h2>
+    <div class="sub" id="overMsg">끝까지 도달하지 못했어요...</div>
+    <button class="btn" id="restartBtn">다시 시작</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem;margin-top:6px">← 목록으로</a>
+  </div>
+
+  <!-- 클리어 -->
+  <div class="overlay hidden" id="winPanel">
+    <h2 style="color:#ffd700">🎉 클리어!</h2>
+    <div style="font-size:2.2rem;font-weight:900;font-family:monospace;color:#ffd700" id="winTimeDisp"></div>
+    <div class="sub" id="winMsg"></div>
+    <button class="btn" style="background:#ffd700;color:#000" id="winRetryBtn">다시 도전!</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem;margin-top:6px">← 목록으로</a>
+  </div>
+</div>
+
+<div id="sensorBar">
+  <span class="label">밝기</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">—</span>
+  <button class="ctrl" id="connectBtn">🔌 연결</button>
+</div>
+
+<div id="settPanel">
+  <h3>⚙️ 센서 · 입력 설정</h3>
+  <div class="testbox">
+    <div class="bigv" id="tBigV">—</div>
+    <div class="hint">현재 밝기 센서 값 (0~1023)</div>
+    <div style="height:10px;background:#1a1a3a;border-radius:5px;overflow:hidden;margin-top:8px">
+      <div id="tBar" style="height:100%;background:var(--accent);border-radius:5px;transition:width .05s;width:0%"></div>
+    </div>
+    <div class="jump-ind" id="jumpInd">🏃 점프!</div>
+  </div>
+  <div class="srow">
+    <label>입력 모드: <strong id="inputModeLabel">둘 다</strong></label>
+    <select id="inputModeSelect">
+      <option value="both">센서 + 키보드 둘 다</option>
+      <option value="sensor">센서만 사용</option>
+      <option value="keyboard">키보드만 사용</option>
+    </select>
+  </div>
+  <div class="srow">
+    <label>점프 임계값: <strong id="thrLabel">300</strong></label>
+    <input type="range" id="thrSlider" min="0" max="1023" value="300">
+    <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);margin-top:2px">
+      <span>0 (어두움)</span><span>1023 (밝음)</span>
+    </div>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:6px">
+      센서 값이 이 값보다 낮으면 점프합니다.
+    </div>
+  </div>
+  <button class="btn" id="closeSett" style="width:100%">닫기</button>
+</div>
+
+<script src="js/serial.js"></script>
+<script>
+// ── 고대비 모드 ───────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  document.getElementById('hcToggle').textContent = hcMode ? '🌙' : '☀️';
+}
+function toggleHC() {
+  hcMode = !hcMode;
+  localStorage.setItem('hc_mode', hcMode ? '1' : '0');
+  applyHC();
+}
+applyHC();
+
+// ── Canvas ────────────────────────────────────
+const canvas = document.getElementById('gc');
+const ctx    = canvas.getContext('2d');
+const wrap   = document.getElementById('gameWrap');
+function resize() { canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight; }
+resize(); window.addEventListener('resize', () => { resize(); if (state === 'menu') {} });
+
+// ── Serial ────────────────────────────────────
+const serial = new SerialManager();
+let sensorVal = 1023; // start as "not covered" (bright)
+serial.onData(v => {
+  sensorVal = v;
+  const pct    = (v / 1023) * 100;
+  const active = v < cfg.threshold;
+  document.getElementById('sensorFill').style.width      = pct + '%';
+  document.getElementById('sensorFill').style.background = active ? '#f43f5e' : '#00ff88';
+  document.getElementById('sensorVal').textContent       = Math.round(v);
+  document.getElementById('tBigV').textContent           = Math.round(v);
+  document.getElementById('tBar').style.width            = pct + '%';
+  document.getElementById('jumpInd').classList.toggle('show', active);
+});
+serial.onConnect(() => {
+  document.getElementById('connectBtn').textContent = '🔴 연결됨';
+  document.getElementById('connectBtn').classList.add('connected');
+});
+serial.onDisconnect(() => {
+  document.getElementById('connectBtn').textContent = '🔌 연결';
+  document.getElementById('connectBtn').classList.remove('connected');
+  sensorVal = 1023;
+});
+
+// ── Config ────────────────────────────────────
+const cfg = { threshold: 300, inputMode: 'both' };
+
+// ── Difficulty ────────────────────────────────
+const DIFFS = {
+  easy:   { gapMin:55,  gapMax:120, yDelta:50,  wMin:130, wMax:210, total:12, spd:2.5, lives:5, label:'쉬움' },
+  normal: { gapMin:100, gapMax:185, yDelta:90,  wMin:80,  wMax:150, total:18, spd:3.0, lives:3, label:'보통' },
+  hard:   { gapMin:145, gapMax:255, yDelta:120, wMin:52,  wMax:110, total:25, spd:3.5, lives:3, label:'어려움' },
+};
+let difficulty = 'normal';
+let diff = DIFFS[difficulty];
+
+function setDiff(d) {
+  difficulty = d;
+  diff = DIFFS[d];
+  document.querySelectorAll('.diff-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.diff === d)
+  );
+  document.getElementById('hiDisp').textContent = getHiByDiff(d);
+  updateProgressUI();
+}
+
+// ── Hi-score (best time per difficulty) ──────
+const LB_PREFIX = 'jumpmap_hi_';
+function getHiSec(d) { return +localStorage.getItem(LB_PREFIX + d) || 0; }
+function saveHi(d, sec) {
+  const prev = getHiSec(d);
+  if (!prev || sec < prev) localStorage.setItem(LB_PREFIX + d, sec);
+}
+function getHiByDiff(d) {
+  const s = getHiSec(d);
+  return s ? s + '초' : '—';
+}
+
+// ── Constants ─────────────────────────────────
+const PLAYER_SX  = 110; // fixed screen x for player
+const GRAVITY    = 0.52;
+const JUMP_VY    = -12;
+const HOLD_BOOST = -0.2;  // extra upward while holding
+const HOLD_CAP   = JUMP_VY * 1.5; // max boost cap
+const MAX_FALL   = 15;
+const PLAT_H     = 18;
+const PLAT_COLORS = ['#00e5ff','#00ff88','#f43f5e','#ffd700','#a78bfa','#ff6b35','#4ade80','#f472b6'];
+
+// ── State ─────────────────────────────────────
+let state = 'menu';
+let platforms = [], particles = [];
+let camera = { x: 0 };
+let frame = 0;
+let platIdCounter = 0;
+let highestPlatId = -1;
+let lives = 3, totalLives = 3;
+let startTime = 0;
+let prevCovered = false;
+let jumpHeld = false;
+let fastFall = false;
+
+// ── Player ────────────────────────────────────
+const player = {
+  wx: 0, y: 0,
+  vy: 0, grounded: false,
+  w: 28, h: 38,
+  invincible: 0,
+  lastSafePlat: null,
+};
+
+// ── Platform Generation ───────────────────────
+function genPlatform(prev) {
+  const gap  = diff.gapMin + Math.random() * (diff.gapMax - diff.gapMin);
+  const wx   = prev.wx + prev.w + gap;
+  let   y    = prev.y + (Math.random() - 0.5) * 2 * diff.yDelta;
+  const minY = canvas.height * 0.1;
+  const maxY = canvas.height * 0.78;
+  y = Math.max(minY, Math.min(maxY, y));
+  const w      = diff.wMin + Math.random() * (diff.wMax - diff.wMin);
+  const isGoal = platIdCounter >= diff.total;
+  const color  = isGoal ? '#ffd700' : PLAT_COLORS[platIdCounter % PLAT_COLORS.length];
+  return { wx, y, w, h: PLAT_H, id: platIdCounter++, color, isGoal, touched: false };
+}
+
+// ── Init ──────────────────────────────────────
+function initGame() {
+  diff = DIFFS[difficulty];
+  frame = 0; platIdCounter = 0; highestPlatId = -1;
+  lives = diff.lives; totalLives = diff.lives;
+  particles = [];
+
+  const startY = Math.round(canvas.height * 0.62);
+  const startPlat = {
+    wx: 30, y: startY, w: 230, h: PLAT_H,
+    id: -1, color: '#00e5ff', isGoal: false, touched: true,
+  };
+  platforms = [startPlat];
+
+  let last = startPlat;
+  for (let i = 0; i < 10; i++) { const p = genPlatform(last); platforms.push(p); last = p; }
+
+  player.wx = startPlat.wx + 90;
+  player.y  = startPlat.y - player.h;
+  player.vy = 0; player.grounded = true;
+  player.invincible = 0;
+  player.lastSafePlat = startPlat;
+
+  camera.x = player.wx - PLAYER_SX;
+  prevCovered = false; jumpHeld = false; fastFall = false;
+  startTime = Date.now();
+
+  updateLivesUI();
+  updateProgressUI();
+  document.getElementById('hiDisp').textContent = getHiByDiff(difficulty);
+}
+
+// ── Update ────────────────────────────────────
+function update() {
+  if (state !== 'playing') return;
+  frame++;
+
+  // Jump input
+  const usesSensor = cfg.inputMode === 'sensor' || cfg.inputMode === 'both';
+  const usesKb     = cfg.inputMode === 'keyboard' || cfg.inputMode === 'both';
+  const sensorCov  = usesSensor && sensorVal < cfg.threshold;
+  const kbCov      = usesKb && jumpHeld;
+  const covered    = sensorCov || kbCov;
+  const justCov    = covered && !prevCovered;
+  prevCovered = covered;
+
+  if (justCov && player.grounded) {
+    player.vy = JUMP_VY;
+    player.grounded = false;
+  }
+  if (covered && !player.grounded && player.vy < 0) {
+    player.vy = Math.max(player.vy + HOLD_BOOST, HOLD_CAP);
+  }
+
+  // Gravity
+  if (!player.grounded) {
+    const grav = fastFall ? GRAVITY * 2.8 : GRAVITY;
+    player.vy = Math.min(player.vy + grav, MAX_FALL);
+  }
+
+  const prevY = player.y;
+  player.y += player.vy;
+
+  // Move world
+  player.wx += diff.spd;
+  camera.x = player.wx - PLAYER_SX;
+
+  // Platform collision
+  player.grounded = false;
+  for (const p of platforms) {
+    if (player.wx + player.w - 8 <= p.wx || player.wx + 8 >= p.wx + p.w) continue;
+    const prevBottom = prevY + player.h;
+    const currBottom = player.y + player.h;
+    if (player.vy >= 0 && prevBottom <= p.y + 3 && currBottom >= p.y) {
+      player.y = p.y - player.h;
+      player.vy = 0;
+      player.grounded = true;
+      if (!p.touched) {
+        p.touched = true;
+        if (p.id > highestPlatId) { highestPlatId = p.id; updateProgressUI(); }
+        if (p.isGoal) { winGame(); return; }
+        spawnLandParticles(PLAYER_SX + player.w / 2, player.y + player.h, p.color);
+      }
+      player.lastSafePlat = p;
+      break;
+    }
+  }
+
+  if (player.invincible > 0) player.invincible--;
+
+  // Fall death
+  if (player.y > canvas.height + 80) { loseLife(); return; }
+
+  // Generate platforms ahead
+  const last = platforms[platforms.length - 1];
+  if (last && !last.isGoal && last.wx - camera.x < canvas.width + 600) {
+    platforms.push(genPlatform(last));
+  }
+  platforms = platforms.filter(p => p.wx + p.w > camera.x - 350);
+
+  // Particles
+  for (const p of particles) {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.alpha -= 0.03; p.life--;
+  }
+  particles = particles.filter(p => p.life > 0);
+}
+
+// ── Lives ─────────────────────────────────────
+function loseLife() {
+  if (player.invincible > 0) return;
+  lives--;
+  updateLivesUI();
+  if (lives <= 0) {
+    state = 'gameover';
+    const cleared = Math.max(0, highestPlatId + 1);
+    document.getElementById('overMsg').textContent =
+      `${cleared}/${diff.total} 플랫폼 통과 · 다시 도전해봐요!`;
+    showOverlay('overPanel');
+    return;
+  }
+  const sp = player.lastSafePlat;
+  if (sp) {
+    player.wx = sp.wx + Math.min(70, sp.w * 0.3);
+    player.y  = sp.y - player.h;
+    camera.x  = player.wx - PLAYER_SX;
+  }
+  player.vy = 0; player.grounded = true;
+  player.invincible = 160;
+  prevCovered = false;
+}
+
+// ── Win ───────────────────────────────────────
+function winGame() {
+  state = 'win';
+  const sec = Math.round((Date.now() - startTime) / 1000);
+  saveHi(difficulty, sec);
+  spawnWinParticles();
+  document.getElementById('winTimeDisp').textContent = sec + '초';
+  const best = getHiSec(difficulty);
+  const newBest = sec === best;
+  document.getElementById('winMsg').textContent =
+    `[${diff.label}] 클리어! 🎊${newBest ? '  신기록!' : ''}`;
+  document.getElementById('hiDisp').textContent = getHiByDiff(difficulty);
+  showOverlay('winPanel');
+}
+
+// ── Particles ─────────────────────────────────
+function spawnLandParticles(x, y, color) {
+  for (let i = 0; i < 7; i++) {
+    const ang = Math.PI + (Math.random() - 0.5) * Math.PI * 0.9;
+    const spd = 1.5 + Math.random() * 3;
+    particles.push({
+      x, y, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 1,
+      alpha: 1, r: 2.5 + Math.random() * 3, life: 18 + Math.random() * 10, color,
+    });
+  }
+}
+function spawnWinParticles() {
+  const colors = ['#ffd700','#f43f5e','#00e5ff','#00ff88','#a78bfa','#ff6b35','#f472b6'];
+  for (let i = 0; i < 70; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const spd = 2 + Math.random() * 7;
+    particles.push({
+      x: canvas.width / 2, y: canvas.height / 2,
+      vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 3,
+      alpha: 1, r: 4 + Math.random() * 6, life: 55 + Math.random() * 35,
+      color: colors[Math.floor(Math.random() * colors.length)],
+    });
+  }
+}
+
+// ── Draw ──────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawBackground();
+  if (state === 'menu') return;
+
+  for (const p of platforms) drawPlatform(p);
+
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.alpha);
+    ctx.shadowColor = p.color; ctx.shadowBlur = 8;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
+  const flicker = player.invincible > 0 && Math.floor(player.invincible / 5) % 2 === 0;
+  if (!flicker) drawPlayer();
+}
+
+// ── Background ────────────────────────────────
+function drawBackground() {
+  if (hcMode) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+  const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  sky.addColorStop(0, '#020212');
+  sky.addColorStop(0.55, '#080522');
+  sky.addColorStop(1, '#130830');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Moon
+  ctx.save();
+  ctx.shadowColor = 'rgba(180,210,255,0.5)'; ctx.shadowBlur = 28;
+  ctx.fillStyle = '#d4e8ff';
+  ctx.beginPath(); ctx.arc(canvas.width - 65, 52, 20, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // Stars (deterministic, no flicker)
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  for (let i = 0; i < 55; i++) {
+    const sx = ((i * 1237 + 521) % 1000) / 1000 * canvas.width;
+    const sy = ((i * 937  + 311) % 1000) / 1000 * canvas.height * 0.52;
+    const r  = (i % 5 === 0) ? 1.3 : 0.7;
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Far buildings
+  drawBuildingLayer(camera.x * 0.2, '#0c0c22', canvas.height * 0.56, false);
+  // Near buildings with windows
+  drawBuildingLayer(camera.x * 0.5, '#07071a', canvas.height * 0.74, true);
+}
+
+function drawBuildingLayer(offset, color, maxH, showWindows) {
+  const tileW = 110;
+  const startI = Math.floor(offset / tileW) - 1;
+  const endI   = startI + Math.ceil(canvas.width / tileW) + 3;
+  for (let i = startI; i <= endI; i++) {
+    const bx   = i * tileW - offset;
+    const seed = Math.abs(i * 7919 + 3001) % 1000;
+    const bw   = 45 + (seed % 45);
+    const bh   = maxH * (0.38 + (seed % 620) / 1000);
+    const by   = canvas.height - bh;
+    ctx.fillStyle = color;
+    ctx.fillRect(bx, by, bw, bh);
+    if (showWindows) {
+      const colCount = Math.floor(bw / 13);
+      const rowCount = Math.floor(bh / 15);
+      for (let r = 0; r < rowCount; r++) {
+        for (let c = 0; c < colCount; c++) {
+          if ((Math.abs(i) * 37 + r * 19 + c * 13) % 7 < 3) {
+            ctx.fillStyle = 'rgba(255,238,120,0.2)';
+            ctx.fillRect(bx + 5 + c * 13, by + 7 + r * 15, 6, 8);
+            ctx.fillStyle = color;
+          }
+        }
+      }
+    }
+  }
+}
+
+// ── Platform Draw ─────────────────────────────
+function drawPlatform(p) {
+  const sx = p.wx - camera.x;
+  if (sx + p.w < -20 || sx > canvas.width + 20) return;
+  ctx.save();
+  ctx.shadowColor = p.color;
+  ctx.shadowBlur  = p.isGoal ? 28 : (p.touched ? 8 : 16);
+  ctx.fillStyle   = p.color;
+  ctx.beginPath(); ctx.roundRect(sx, p.y, p.w, p.h, 6); ctx.fill();
+  // Top highlight
+  ctx.shadowBlur  = 0;
+  ctx.fillStyle   = 'rgba(255,255,255,0.32)';
+  ctx.beginPath(); ctx.roundRect(sx + 2, p.y + 2, p.w - 4, 4, 3); ctx.fill();
+  // Support legs
+  ctx.fillStyle = p.color + '55';
+  ctx.fillRect(sx + 8, p.y + p.h, 5, 14);
+  ctx.fillRect(sx + p.w - 13, p.y + p.h, 5, 14);
+  // Goal flag
+  if (p.isGoal) {
+    const mx = sx + p.w / 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillRect(mx - 1, p.y - 44, 3, 44);
+    ctx.fillStyle = '#f43f5e';
+    ctx.beginPath();
+    ctx.moveTo(mx + 2, p.y - 44);
+    ctx.lineTo(mx + 24, p.y - 36);
+    ctx.lineTo(mx + 2, p.y - 27);
+    ctx.closePath(); ctx.fill();
+    ctx.font = 'bold 13px monospace';
+    ctx.fillStyle = '#ffd700';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 12;
+    ctx.fillText('GOAL!', mx, p.y - 50);
+    ctx.shadowBlur = 0; ctx.textAlign = 'left';
+  }
+  ctx.restore();
+}
+
+// ── Player Draw ───────────────────────────────
+function drawPlayer() {
+  const sx = PLAYER_SX;
+  const sy = player.y;
+  const cw = player.w, ch = player.h;
+  ctx.save();
+  ctx.translate(sx + cw / 2, sy + ch / 2);
+  const run = player.grounded ? frame * 0.27 : Math.PI / 4;
+  const ls  = Math.sin(run) * 7;
+
+  // Shadow
+  if (player.grounded) {
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(0, ch / 2 + 3, 13, 4, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Legs
+  ctx.fillStyle = '#2563eb';
+  ctx.save(); ctx.translate(-5, ch * 0.14); ctx.rotate(ls * 0.055);
+  ctx.beginPath(); ctx.roundRect(-3, 0, 7, 14, 3); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.translate(5, ch * 0.14); ctx.rotate(-ls * 0.055);
+  ctx.beginPath(); ctx.roundRect(-3, 0, 7, 14, 3); ctx.fill(); ctx.restore();
+
+  // Shoes
+  ctx.fillStyle = '#1d4ed8';
+  ctx.beginPath();
+  ctx.ellipse(-5 + Math.sin(run) * 2, ch * 0.14 + 14, 5, 3.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(5 - Math.sin(run) * 2, ch * 0.14 + 14, 5, 3.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.shadowColor = '#ff6b35'; ctx.shadowBlur = 10;
+  ctx.fillStyle = '#ff6b35';
+  ctx.beginPath(); ctx.roundRect(-cw * 0.38, -ch * 0.22, cw * 0.76, ch * 0.49, 6); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Cape / scarf
+  ctx.fillStyle = '#f43f5e';
+  ctx.beginPath();
+  ctx.moveTo(-cw * 0.24, -ch * 0.22);
+  ctx.lineTo(-cw * 0.38, ch * 0.06);
+  ctx.lineTo(-cw * 0.52 + Math.sin(frame * 0.22) * 5, ch * 0.1);
+  ctx.closePath(); ctx.fill();
+
+  // Head
+  ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 8;
+  ctx.fillStyle = '#fbbf24';
+  ctx.beginPath(); ctx.arc(0, -ch * 0.35, cw * 0.38, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Hair
+  ctx.fillStyle = '#92400e';
+  ctx.beginPath(); ctx.arc(0, -ch * 0.5, cw * 0.3, Math.PI, 0); ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath();
+  ctx.arc(-5, -ch * 0.36, 2.4, 0, Math.PI * 2);
+  ctx.arc(5, -ch * 0.36, 2.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath();
+  ctx.arc(-4, -ch * 0.38, 1, 0, Math.PI * 2);
+  ctx.arc(6, -ch * 0.38, 1, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Smile
+  ctx.strokeStyle = '#92400e'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(0, -ch * 0.29, 3.5, 0.2, Math.PI - 0.2); ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── Game Loop ─────────────────────────────────
+function loop() { requestAnimationFrame(loop); update(); draw(); }
+loop();
+
+// ── UI Helpers ────────────────────────────────
+function updateLivesUI() {
+  document.getElementById('livesDisp').innerHTML =
+    Array.from({ length: totalLives }, (_, i) =>
+      `<span style="opacity:${i < lives ? 1 : 0.15}">❤️</span>`
+    ).join('');
+}
+function updateProgressUI() {
+  const cleared = Math.max(0, highestPlatId + 1);
+  const total   = diff ? diff.total : DIFFS[difficulty].total;
+  document.getElementById('progText').textContent = `${cleared}/${total}`;
+  document.getElementById('progFill').style.width = `${Math.min(100, cleared / total * 100)}%`;
+}
+
+function showOverlay(id) {
+  ['startPanel','overPanel','winPanel'].forEach(p =>
+    document.getElementById(p).classList.toggle('hidden', p !== id)
+  );
+}
+function hideAllOverlays() {
+  ['startPanel','overPanel','winPanel'].forEach(p =>
+    document.getElementById(p).classList.add('hidden')
+  );
+}
+
+// ── Game Flow ─────────────────────────────────
+function startGame() {
+  initGame();
+  state = 'playing';
+  hideAllOverlays();
+}
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+document.getElementById('winRetryBtn').addEventListener('click', startGame);
+
+// ── Input ─────────────────────────────────────
+function isJumpKey(e) {
+  return e.key === 'w' || e.key === 'W' || e.key === ' ' || e.key === 'ArrowUp';
+}
+function isFastFallKey(e) {
+  return e.key === 's' || e.key === 'S' || e.key === 'ArrowDown';
+}
+
+window.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (isJumpKey(e)) {
+    e.preventDefault();
+    jumpHeld = true;
+    if (state !== 'playing') startGame();
+  }
+  if (isFastFallKey(e)) { e.preventDefault(); fastFall = true; }
+});
+window.addEventListener('keyup', e => {
+  if (isJumpKey(e)) jumpHeld = false;
+  if (isFastFallKey(e)) fastFall = false;
+});
+canvas.addEventListener('pointerdown', e => {
+  e.preventDefault(); jumpHeld = true;
+  if (state !== 'playing') startGame();
+});
+canvas.addEventListener('pointerup', () => { jumpHeld = false; });
+
+// ── Serial ────────────────────────────────────
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) await serial.disconnect();
+  else try { await serial.connect(); } catch (err) { alert(err.message); }
+});
+
+// ── Settings ──────────────────────────────────
+document.getElementById('settBtn').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.toggle('open'));
+document.getElementById('closeSett').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.remove('open'));
+document.getElementById('thrSlider').addEventListener('input', e => {
+  cfg.threshold = +e.target.value;
+  document.getElementById('thrLabel').textContent = cfg.threshold;
+});
+document.getElementById('inputModeSelect').addEventListener('change', e => {
+  cfg.inputMode = e.target.value;
+  document.getElementById('inputModeLabel').textContent =
+    { sensor: '센서', keyboard: '키보드', both: '둘 다' }[cfg.inputMode];
+});
+
+// Init display
+updateProgressUI();
+document.getElementById('hiDisp').textContent = getHiByDiff(difficulty);
+</script>
+</body>
+</html>

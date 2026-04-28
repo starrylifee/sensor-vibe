@@ -419,6 +419,76 @@
     </div>
   </a>
 
+  <a href="shadow-dodge.html" class="card" style="--c:#a855f7">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">🌑</span>
+      <div class="card-title">그림자 피하기 게임</div>
+      <div class="card-desc">밝기 센서로 캐릭터를 좌우 이동! 그림자를 피하고, 센서를 밝게 유지해 에너지를 충전하세요. 에너지가 0이 되면 게임 오버.</div>
+      <span class="sensor-badge">밝기 센서 (아날로그)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-shadow">—</span></div>
+      <button class="play-btn" style="background:#a855f7;box-shadow:0 0 12px #a855f7">플레이 →</button>
+    </div>
+  </a>
+
+  <a href="icecream-shop.html" class="card" style="--c:#e91e8c">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">🍦</span>
+      <div class="card-title">아이스크림 가게에 어서오세요!</div>
+      <div class="card-desc">좌우로 흔들리는 스쿱! 밝기 센서를 가리는 순간 떨어져요. 콘 위에 정확히 올리세요. 3번 놓치면 게임 오버!</div>
+      <span class="sensor-badge">밝기 센서 (아날로그)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-icecream">—</span></div>
+      <button class="play-btn" style="background:#e91e8c;box-shadow:0 0 12px #e91e8c">플레이 →</button>
+    </div>
+  </a>
+
+  <a href="jump-map.html" class="card" style="--c:#e11d48">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">🏙️</span>
+      <div class="card-title">밝기 센서 점프맵</div>
+      <div class="card-desc">밝기 센서를 손으로 가리면 점프! 도시 빌딩을 뛰어넘어 끝까지 클리어하세요. 쉬움·보통·어려움 3가지 난이도.</div>
+      <span class="sensor-badge">밝기 센서 (아날로그)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-jumpmap">—</span></div>
+      <button class="play-btn" style="background:#e11d48;box-shadow:0 0 12px #e11d48">플레이 →</button>
+    </div>
+  </a>
+
+  <a href="banana-runner.html" class="card" style="--c:#f59e0b">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">🍌</span>
+      <div class="card-title">바나나 달리기</div>
+      <div class="card-desc">밝기 센서를 가렸다가 밝히는 순간 점프! 바나나는 점수, 사과는 피하면서 60초 동안 최대한 많이 모으세요.</div>
+      <span class="sensor-badge">밝기 센서 (아날로그)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-banana">—</span></div>
+      <button class="play-btn" style="background:#f59e0b;box-shadow:0 0 12px #f59e0b">플레이 →</button>
+    </div>
+  </a>
+
+  <a href="alien-shooting.html" class="card" style="--c:#00ffb4">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">👽</span>
+      <div class="card-title">외계인 슈팅 게임</div>
+      <div class="card-desc">밝기 센서를 가리면 자동 발사! 왼쪽에서 다가오는 외계인을 5라운드 동안 격추하는 슈팅 게임입니다.</div>
+      <span class="sensor-badge">밝기 센서 (아날로그)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-alien">—</span></div>
+      <button class="play-btn" style="background:#00ffb4;box-shadow:0 0 12px #00ffb4">플레이 →</button>
+    </div>
+  </a>
+
     <!-- 예시: 아래 카드 복사해서 학생 작품 추가
     <a href="학생파일.html" class="card" style="--c:#a855f7">
       <div class="card-top"></div>
@@ -524,6 +594,21 @@ document.getElementById('hi-space').textContent =
   fmt(localStorage.getItem('spacejump_hi'));
 document.getElementById('hi-seesaw').textContent =
   fmt(localStorage.getItem('seesaw_hi'));
+
+document.getElementById('hi-shadow').textContent =
+  fmt(localStorage.getItem('shadowdodge_hi'));
+document.getElementById('hi-icecream').textContent =
+  fmt(localStorage.getItem('icecream_hi'));
+document.getElementById('hi-banana').textContent =
+  fmt(localStorage.getItem('bananarunner_hi'));
+document.getElementById('hi-alien').textContent =
+  fmt(localStorage.getItem('alienshoot_hi'));
+
+// 점프맵: 난이도별 최고 기록 중 가장 빠른 시간
+(function() {
+  const bests = ['easy','normal','hard'].map(d => +localStorage.getItem('jumpmap_hi_' + d) || 0).filter(v => v > 0);
+  document.getElementById('hi-jumpmap').textContent = bests.length ? Math.min(...bests) + '초' : '—';
+})();
 
 // ── 브라우저 체크 ────────────────────────────
 if (!('serial' in navigator)) {
