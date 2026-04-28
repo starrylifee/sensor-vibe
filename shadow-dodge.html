@@ -88,7 +88,7 @@
       <span style="color:#ffd700">센서가 밝을수록</span> 에너지가 충전돼요.<br>
       어두우면 에너지가 줄어들어요.<br>
       그림자에 닿으면 에너지가 크게 감소!<br>
-      <span style="font-size:.72rem;opacity:.65">키보드 ←→ / A·D 로도 이동 가능</span>
+      <span style="font-size:.72rem;opacity:.65">밝기 센서로 움직이며 그림자를 피하세요.</span>
     </div>
     <button class="btn" id="startBtn">시작! 🌟</button>
   </div>
@@ -585,13 +585,7 @@ window.addEventListener('keyup', e => {
   if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') leftHeld  = false;
   if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') rightHeld = false;
 });
-canvas.addEventListener('pointerdown', e => {
-  if (state !== 'playing') { startGame(); return; }
-  // Touch: left half = move left, right half = move right
-  if (e.clientX < canvas.getBoundingClientRect().left + canvas.width / 2) leftHeld = true;
-  else rightHeld = true;
-});
-canvas.addEventListener('pointerup', () => { leftHeld = false; rightHeld = false; });
+// Mouse/touch should not replace the sensor movement action in this game.
 
 // ── Serial ────────────────────────────────────
 document.getElementById('connectBtn').addEventListener('click', async () => {

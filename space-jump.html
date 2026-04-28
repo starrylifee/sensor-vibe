@@ -85,7 +85,7 @@
     <div class="sub">
       밝기 센서를 손으로 <strong style="color:var(--accent)">가리면</strong> 로켓이 점프합니다!<br>
       소행성을 피하며 우주를 달리세요.<br>
-      설정에서 키보드 · 터치 조작으로도 변경 가능합니다.
+      설정에서 점프 기준값과 속도를 조정할 수 있습니다.
     </div>
     <button class="btn" id="startBtn">시작</button>
   </div>
@@ -120,7 +120,6 @@
     <select id="inputModeSelect">
       <option value="sensor">센서만 사용</option>
       <option value="keyboard">키보드 Space</option>
-      <option value="mouse">마우스 / 터치</option>
     </select>
   </div>
   <div class="srow">
@@ -188,7 +187,7 @@ serial.onDisconnect(() => {
 
 // ── Config ───────────────────────────────────
 const cfg = { threshold: 300, speedLevel: 2, inputMode: 'sensor' };
-const INPUT_MODE_LABELS = { sensor: '센서', keyboard: '키보드', mouse: '마우스' };
+const INPUT_MODE_LABELS = { sensor: '센서', keyboard: '키보드' };
 
 function syncInputModeUI() {
   document.getElementById('inputModeSelect').value = cfg.inputMode;
@@ -547,14 +546,7 @@ window.addEventListener('keydown', e => {
   if (cfg.inputMode !== 'keyboard') return;
   if (e.key === ' ') { e.preventDefault(); player.jumpPressed = true; if (state !== 'playing') startGame(); }
 });
-canvas.addEventListener('click', () => {
-  if (cfg.inputMode !== 'mouse') return;
-  player.jumpPressed = true; if (state !== 'playing') startGame();
-});
-canvas.addEventListener('touchstart', e => {
-  if (cfg.inputMode !== 'mouse') return;
-  e.preventDefault(); player.jumpPressed = true; if (state !== 'playing') startGame();
-}, { passive: false });
+// Mouse/touch should not replace the sensor jump action in this game.
 
 // ── Serial ────────────────────────────────────
 document.getElementById('connectBtn').addEventListener('click', async () => {

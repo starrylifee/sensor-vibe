@@ -86,7 +86,7 @@
       아이스크림 스쿱이 떨어져요!<br>
       콘 위에 정확히 올리세요 🎯<br>
       3번 놓치면 게임 오버!<br>
-      <span style="font-size:.72rem;opacity:.6">키보드 Space · ↓ 로도 가능</span>
+      <span style="font-size:.72rem;opacity:.6">밝기 센서 반응 타이밍을 맞춰 보세요.</span>
     </div>
     <button class="btn" id="startBtn">시작! 🍦</button>
   </div>
@@ -584,11 +584,7 @@ window.addEventListener('keydown', e => {
     if (state !== 'playing') startGame();
   }
 });
-canvas.addEventListener('pointerdown', e => {
-  e.preventDefault(); dropKeyHeld = true;
-  if (state !== 'playing') startGame();
-});
-canvas.addEventListener('pointerup', () => { dropKeyHeld = false; });
+// Mouse/touch should not replace the sensor action in this game.
 
 // ── Serial ────────────────────────────────────
 document.getElementById('connectBtn').addEventListener('click', async () => {

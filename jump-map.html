@@ -134,7 +134,7 @@
       밝기 센서를 손으로 <strong style="color:var(--accent)">가리면</strong> 점프!<br>
       손을 <strong style="color:var(--accent)">떼면</strong> 점프 안 해요.<br>
       빌딩을 뛰어넘어 끝까지 클리어하세요!<br>
-      <span style="font-size:.73rem;opacity:.65">키보드 W · Space · ↑ 로도 점프 가능</span>
+      <span style="font-size:.73rem;opacity:.65">밝기 센서를 가리는 순간 점프합니다.</span>
     </div>
     <div style="text-align:center;font-size:.78rem;color:var(--muted);margin-bottom:2px">난이도 선택</div>
     <div class="diff-row">
@@ -773,11 +773,7 @@ window.addEventListener('keyup', e => {
   if (isJumpKey(e)) jumpHeld = false;
   if (isFastFallKey(e)) fastFall = false;
 });
-canvas.addEventListener('pointerdown', e => {
-  e.preventDefault(); jumpHeld = true;
-  if (state !== 'playing') startGame();
-});
-canvas.addEventListener('pointerup', () => { jumpHeld = false; });
+// Mouse/touch should not replace the sensor jump action in this game.
 
 // ── Serial ────────────────────────────────────
 document.getElementById('connectBtn').addEventListener('click', async () => {

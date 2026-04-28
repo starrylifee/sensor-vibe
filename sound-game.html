@@ -83,7 +83,7 @@
 
   <div class="overlay" id="startPanel">
     <h2>💡 밝기 점프</h2>
-    <div class="sub">밝기 센서를 손으로 가리면 점프합니다.<br>설정에서 키보드 Space 또는 마우스 클릭 조작으로 바꿀 수 있습니다.</div>
+    <div class="sub">밝기 센서를 손으로 가리면 점프합니다.<br>설정에서 점프 기준값과 속도를 조정할 수 있습니다.</div>
     <button class="btn" id="startBtn">시작</button>
   </div>
 
@@ -117,7 +117,6 @@
     <select id="inputModeSelect">
       <option value="sensor">센서만 사용</option>
       <option value="keyboard">키보드 Space</option>
-      <option value="mouse">마우스 / 터치</option>
     </select>
     <div style="font-size:.72rem;color:var(--muted);margin-top:6px">기본 조작은 센서이며, 여기서만 다른 입력으로 전환됩니다.</div>
   </div>
@@ -151,7 +150,6 @@ const cfg = { threshold: 300, speedLevel: 2, inputMode: 'sensor' };
 const INPUT_MODE_LABELS = {
   sensor: '센서',
   keyboard: '키보드',
-  mouse: '마우스',
 };
 // ── 고대비 모드 ──────────────────────────────
 let hcMode = localStorage.getItem('hc_mode') === '1';
@@ -405,18 +403,7 @@ window.addEventListener('keydown', e => {
     if (state === 'menu' || state === 'gameover') startGame();
   }
 });
-canvas.addEventListener('click', () => {
-  if (cfg.inputMode !== 'mouse') return;
-  player.jumpPressed = true;
-  if (state==='menu') startGame();
-  if (state==='gameover') startGame();
-});
-canvas.addEventListener('touchstart', e => {
-  if (cfg.inputMode !== 'mouse') return;
-  e.preventDefault();
-  player.jumpPressed = true;
-  if (state === 'menu' || state === 'gameover') startGame();
-}, { passive: false });
+// Mouse/touch should not replace the sensor jump action in this game.
 
 document.getElementById('startBtn').addEventListener('click', startGame);
 document.getElementById('restartBtn').addEventListener('click', startGame);

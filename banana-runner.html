@@ -90,7 +90,7 @@
       <strong style="color:var(--accent)">손을 떼는 순간</strong> → 점프! 🦘<br>
       바나나 🍌 = <strong style="color:#f59e0b">+3점</strong>  사과 🍎 = <strong style="color:#6b7280">0점</strong><br>
       60초 동안 바나나를 최대한 모으세요!<br>
-      <span style="font-size:.72rem;opacity:.6">키보드 Space / ↑ 로도 점프 가능</span>
+      <span style="font-size:.72rem;opacity:.6">밝기 센서를 가리는 순간 점프합니다.</span>
     </div>
     <button class="btn" id="startBtn">달려! 🍌</button>
   </div>
@@ -492,10 +492,7 @@ window.addEventListener('keydown', e => {
     if (state !== 'playing') startGame();
   }
 });
-canvas.addEventListener('pointerdown', e => {
-  e.preventDefault(); jumpKeyPressed = true;
-  if (state !== 'playing') startGame();
-});
+// Mouse/touch should not replace the sensor jump action in this game.
 
 // ── Serial ────────────────────────────────────
 document.getElementById('connectBtn').addEventListener('click', async () => {
