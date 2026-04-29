@@ -231,7 +231,7 @@ let items = [];
 let foundCount = 0;
 let particles = [];
 let floatTexts = [];
-let stepTimer = 0;
+let stepTimer = 0, stopFrames = 0;
 let mouseRatio = 0.2; // 0=left(walking), 1=right(stopped)
 let keyWalk = false;
 
@@ -294,7 +294,7 @@ function init() {
   C.state = 'idle';
   C.digTimer = 0; C.actionTimer = 0;
   C.nearItem = null; C.hintPulse = 0;
-  C.prevWalking = false;
+  C.prevWalking = false; stopFrames = 0;
   placeItems();
   updateHUD();
 }
@@ -407,17 +407,22 @@ function update() {
     }
 
     C.prevWalking = true;
+    stopFrames = 0;
   } else {
     // Stopped
-    if (C.prevWalking) {
-      // Just stopped — initiate dig
+    stopFrames++;
+    if (C.prevWalking && stopFrames >= 8) {
+      // 8프레임 이상 멈춤 확인 후 파기 (jitter 오발 방지)
       C.state = 'digging';
       C.digTimer = DIG_FRAMES;
       C.phase = 0;
-    } else {
+      C.prevWalking = false;
+      stopFrames = 0;
+    } else if (!C.prevWalking) {
       C.state = 'idle';
+    } else {
+      C.state = 'idle'; // 멈춤 확인 대기 중
     }
-    C.prevWalking = false;
   }
 
   updateParticles();

@@ -302,7 +302,7 @@ function update() {
 
   // Character mode & morph
   charMode = d < cfg.threshold ? 'tall' : 'wide';
-  morphFactor += ((charMode === 'tall' ? 1 : 0) - morphFactor) * 0.14;
+  morphFactor += ((charMode === 'tall' ? 1 : 0) - morphFactor) * 0.18;
 
   // Sensor bar color: green = tall, blue = wide
   document.getElementById('sensorFill').style.background =
@@ -323,7 +323,7 @@ function update() {
       blockedWall.blocked = false;
       blockedWall.passed = true;
       blockedWall = null;
-    } else if (blockedWall.blockTimer > 160) {
+    } else if (blockedWall.blockTimer > 200) {
       // Timeout → lose life
       lives--;
       updateHUD();
@@ -436,8 +436,8 @@ function draw() {
 
   // Blocked countdown bar
   if (blockedWall && state === 'playing') {
-    const remain = Math.max(0, 160 - blockedWall.blockTimer);
-    const pct = remain / 160;
+    const remain = Math.max(0, 200 - blockedWall.blockTimer);
+    const pct = remain / 200;
     const bx = W * 0.25, bw = W * 0.5;
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.beginPath(); ctx.roundRect(bx, 10, bw, 14, 5); ctx.fill();

@@ -248,7 +248,7 @@ function L() {
 let state = 'menu';
 let score = 0, lives = 3;
 let signal = 'red';
-let soundCool = 0;
+let soundCool = 0, sigPending = 0;
 let cars = [], particles = [];
 let carTimer = 0;
 let flashT = 0, flashClr = '#f00';
@@ -277,7 +277,7 @@ function init(full) {
   if (full) { score = 0; lives = 3; }
   cars = []; particles = [];
   carTimer = 60;
-  signal = 'red'; soundCool = 0;
+  signal = 'red'; soundCool = 0; sigPending = 0;
   flashT = 0;
   resetPerson();
   updateHUD();
@@ -319,14 +319,19 @@ function update() {
   // Smooth sensor
   distance = distance * 0.55 + rawDist * 0.45;
 
-  // Signal
-  const newSig = d >= cfg.threshold ? 'green' : 'red';
-  if (newSig !== signal) {
-    signal = newSig;
-    if (soundCool <= 0) {
-      if (signal === 'green') playGreen(); else playRed();
-      soundCool = 70;
+  // Signal (8프레임 debounce — 센서 jitter로 인한 깜빡임 방지)
+  const desiredSig = d >= cfg.threshold ? 'green' : 'red';
+  if (desiredSig !== signal) {
+    if (++sigPending >= 8) {
+      signal = desiredSig;
+      sigPending = 0;
+      if (soundCool <= 0) {
+        if (signal === 'green') playGreen(); else playRed();
+        soundCool = 70;
+      }
     }
+  } else {
+    sigPending = 0;
   }
   if (soundCool > 0) soundCool--;
 

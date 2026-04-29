@@ -214,12 +214,12 @@ function lerp(a, b, t) { return a + (b - a) * t; }
 const LANE_L  = 0.30;
 const LANE_R  = 0.70;
 const CHAR_Y  = 0.72; // character Y ratio
-const HIT_TOL = 0.16; // X tolerance (normalized) for block hit
+const HIT_TOL = 0.20; // X tolerance (normalized) for block hit
 const BLK_W   = 0.24; // block width ratio
 const BLK_H   = 0.075; // block height ratio
 
 function blockSpeed()    { return [2.0, 3.2, 5.0][cfg.speedLevel - 1]; }
-function blockInterval() { return Math.max(38, 115 - score * 1.8); }
+function blockInterval() { return Math.max(50, 130 - score * 1.8); }
 
 // ── State ─────────────────────────────────────
 let state = 'menu';
@@ -296,7 +296,7 @@ function update() {
 
   // Character follows sensor
   charTargetX = d < cfg.threshold ? LANE_L : LANE_R;
-  charX += (charTargetX - charX) * 0.10;
+  charX += (charTargetX - charX) * 0.15;
   charPhase += 0.07;
 
   // Sensor bar
