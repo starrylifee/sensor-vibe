@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>초음파 계단 — EZMaker</title>
+<style>
+  :root{--bg:#06080f;--panel:#0a0c18;--border:#1a1e40;--accent:#06b6d4;
+    --alt:#a78bfa;--success:#00ff88;--danger:#ff4444;--muted:#64748b;--text:#e2e8f0;}
+  body.hc{--bg:#000;--panel:#111;--border:#fff;--text:#fff;--muted:#ddd;}
+  body.hc .overlay{background:rgba(0,0,0,.97);}
+  body.hc #settPanel{background:#111;border-color:#fff;}
+  body.hc .testbox{background:#1a1a1a;border-color:#fff;}
+  body.hc .srow select{background:#1a1a1a;border-color:#fff;color:#fff;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+    height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+
+  #topbar{width:100%;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);gap:8px;flex-shrink:0;}
+  #topbar a{color:var(--muted);text-decoration:none;font-size:.8rem;}
+  #topbar a:hover{color:var(--accent);}
+  .stat{text-align:center;}
+  .stat .label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat .value{font-size:1.05rem;font-weight:700;color:var(--accent);font-family:monospace;}
+
+  #gameWrap{position:relative;flex:1;width:100%;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+
+  #sensorBar{width:100%;background:var(--panel);border-top:1px solid var(--border);
+    padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  #sensorBar .label{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  #sensorMeter{flex:1;height:8px;background:#1a1a3a;border-radius:4px;overflow:hidden;}
+  #sensorFill{height:100%;background:var(--accent);border-radius:4px;transition:width .05s,background .15s;width:50%;}
+  #sensorVal{font-size:.75rem;font-family:monospace;color:var(--accent);min-width:52px;text-align:right;}
+
+  button.ctrl{background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;
+    padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;}
+  button.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+  button.ctrl.connected{border-color:var(--success);color:var(--success);}
+
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.88);z-index:10;flex-direction:column;gap:14px;padding:28px;text-align:center;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-size:1.5rem;font-weight:900;color:var(--accent);}
+  .overlay .sub{color:var(--muted);font-size:.85rem;line-height:2;max-width:380px;}
+  .btn{background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 28px;
+    font-size:.95rem;font-weight:700;cursor:pointer;min-width:140px;}
+
+  #settPanel{position:absolute;top:0;right:0;bottom:0;width:min(300px,100%);background:var(--panel);
+    border-left:1px solid var(--border);z-index:20;padding:20px;overflow-y:auto;
+    transform:translateX(100%);transition:transform .3s;}
+  #settPanel.open{transform:translateX(0);}
+  #settPanel h3{color:var(--accent);margin-bottom:18px;}
+  .srow{margin-bottom:16px;}
+  .srow label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;}
+  .srow input[type=range]{width:100%;accent-color:var(--accent);}
+  .srow select{width:100%;background:#0a0a18;border:1px solid var(--border);color:var(--text);
+    border-radius:8px;padding:8px 10px;}
+  .testbox{background:#0a0c18;border:1px solid var(--border);border-radius:8px;padding:14px;
+    margin-bottom:16px;text-align:center;}
+  .testbox .bigv{font-size:2rem;font-weight:900;font-family:monospace;color:var(--accent);}
+  .testbox .hint{font-size:.72rem;color:var(--muted);margin-top:4px;}
+  .testbar{height:10px;background:#1a1a3a;border-radius:5px;overflow:hidden;margin-top:8px;}
+  .testbar div{height:100%;background:var(--accent);border-radius:5px;transition:width .05s,background .15s;width:0%;}
+  .react-ind{display:inline-block;margin-top:8px;padding:3px 12px;border-radius:12px;font-size:.75rem;
+    font-weight:700;opacity:0;transition:opacity .15s;}
+  .react-ind.left{background:rgba(6,182,212,.12);border:1px solid rgba(6,182,212,.4);color:var(--accent);}
+  .react-ind.right{background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.4);color:var(--alt);}
+  .react-ind.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div style="display:flex;gap:14px">
+    <div class="stat"><div class="label">계단</div><div class="value" id="scoreDisp">0</div></div>
+    <div class="stat"><div class="label">최고</div><div class="value" id="hiDisp">0</div></div>
+    <div class="stat"><div class="label">목숨</div><div class="value" id="livesDisp">❤❤❤</div></div>
+  </div>
+  <div style="display:flex;gap:6px">
+    <button class="ctrl" id="hcToggle" onclick="toggleHC()" title="고대비 모드">☀️</button>
+    <button class="ctrl" id="settBtn">⚙️</button>
+  </div>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+
+  <div class="overlay" id="startPanel">
+    <h2>🪜 초음파 계단</h2>
+    <div class="sub">
+      초음파 센서로 계단 위치를 맞추세요!<br><br>
+      📡 <strong>손을 가까이</strong> → 왼쪽 계단으로 이동<br>
+      📡 <strong>손을 멀리</strong> → 오른쪽 계단으로 이동<br><br>
+      계단이 내려오면 알맞은 위치로!<br>
+      방향을 잘못 맞추면 <strong>아뿔싸!</strong> 떨어져요<br>
+      목숨 3개를 모두 잃으면 게임 오버
+    </div>
+    <button class="btn" id="startBtn">올라가기!</button>
+  </div>
+
+  <div class="overlay hidden" id="overPanel">
+    <h2>😱 아뿔싸! 떨어졌어요!</h2>
+    <div style="font-size:1.8rem;color:var(--accent);font-family:monospace" id="finalDisp"></div>
+    <div style="color:var(--muted);font-size:.82rem;margin-top:4px" id="hiLine"></div>
+    <button class="btn" id="restartBtn" style="margin-top:8px">다시 올라가기!</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem">← 목록으로</a>
+  </div>
+</div>
+
+<div id="sensorBar">
+  <span class="label">거리</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">— cm</span>
+  <button class="ctrl" id="connectBtn">🔌 연결</button>
+</div>
+
+<div id="settPanel">
+  <h3>⚙️ 센서 · 입력 설정</h3>
+  <div class="testbox">
+    <div class="bigv" id="tBigV">— cm</div>
+    <div class="hint">초음파 센서 거리 (0~400cm)</div>
+    <div class="testbar"><div id="tBar"></div></div>
+    <div class="react-ind left" id="reactInd">왼쪽</div>
+  </div>
+  <div class="srow">
+    <label>기준 거리: <strong id="threshLabel">20</strong> cm</label>
+    <input type="range" id="threshSlider" min="5" max="60" value="20">
+    <div style="font-size:.72rem;color:var(--muted);margin-top:4px">
+      이 거리보다 가까우면 왼쪽, 멀면 오른쪽 계단
+    </div>
+  </div>
+  <div class="srow">
+    <label>계단 속도: <strong id="speedLabel">보통</strong></label>
+    <input type="range" id="speedSlider" min="1" max="3" value="2" step="1">
+  </div>
+  <div class="srow">
+    <label>입력 모드: <strong id="inputModeLabel">센서</strong></label>
+    <select id="inputModeSelect">
+      <option value="sensor">센서만 사용</option>
+      <option value="mouse">마우스 (왼쪽=왼쪽, 오른쪽=오른쪽)</option>
+      <option value="keyboard">키보드 (←→ or A/D)</option>
+    </select>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:6px">기본 조작은 센서입니다.</div>
+  </div>
+  <button class="btn" id="closeSett" style="width:100%">닫기</button>
+</div>
+
+<script src="js/serial.js"></script>
+<script src="js/keyboard-lock.js"></script>
+<script>
+// ── Canvas ────────────────────────────────────
+const canvas = document.getElementById('gc');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('gameWrap');
+function resize() { canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight; }
+resize(); window.addEventListener('resize', resize);
+
+// ── Serial ────────────────────────────────────
+const serial = new SerialManager();
+let rawDist = 20, distance = 20;
+const cfg = { threshold: 20, maxDist: 40, speedLevel: 2, inputMode: 'sensor' };
+
+// ── HC mode ───────────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  document.getElementById('hcToggle').textContent = hcMode ? '🌙' : '☀️';
+}
+function toggleHC() {
+  hcMode = !hcMode;
+  localStorage.setItem('hc_mode', hcMode ? '1' : '0');
+  applyHC();
+}
+applyHC();
+
+// ── Hi-score ──────────────────────────────────
+const LB_KEY = 'stairclimb_hi';
+function getHi() { return +localStorage.getItem(LB_KEY) || 0; }
+function setHi(s) { if (s > getHi()) localStorage.setItem(LB_KEY, s); }
+
+// ── Audio ─────────────────────────────────────
+let ac = null;
+function getAC() {
+  if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+  return ac;
+}
+function tone(freq, dur, type, vol, delay) {
+  try {
+    const a = getAC(), osc = a.createOscillator(), g = a.createGain();
+    osc.connect(g); g.connect(a.destination);
+    osc.frequency.value = freq; osc.type = type || 'sine';
+    const t0 = a.currentTime + (delay || 0);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol || 0.13, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.start(t0); osc.stop(t0 + dur + 0.01);
+  } catch(e) {}
+}
+function playStep()  { tone(520, .06, 'sine', .12); tone(660, .08, 'sine', .12, .06); }
+function playMiss()  { tone(250, .10, 'square', .12); tone(200, .18, 'square', .10, .09); }
+function playFall()  {
+  tone(300, .07, 'sawtooth', .18);
+  tone(220, .12, 'sawtooth', .15, .07);
+  tone(140, .30, 'sawtooth', .12, .18);
+}
+
+// ── Helpers ───────────────────────────────────
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+// ── Lane positions (normalized 0-1) ───────────
+const LANE_L  = 0.30;
+const LANE_R  = 0.70;
+const CHAR_Y  = 0.72; // character Y ratio
+const HIT_TOL = 0.16; // X tolerance (normalized) for block hit
+const BLK_W   = 0.24; // block width ratio
+const BLK_H   = 0.075; // block height ratio
+
+function blockSpeed()    { return [2.0, 3.2, 5.0][cfg.speedLevel - 1]; }
+function blockInterval() { return Math.max(38, 115 - score * 1.8); }
+
+// ── State ─────────────────────────────────────
+let state = 'menu';
+let score = 0, lives = 3;
+let blocks = [];
+let blockTimer = 0;
+let nextLane = 'left';
+let sameStreak = 0;
+let particles = [], floatTexts = [];
+let flashT = 0, flashClr = '#f00';
+let charX = 0.5;     // normalized (follows sensor)
+let charTargetX = 0.5;
+let charPhase = 0;
+let mouseRatio = 0.5;
+const keys = {};
+
+// ── Effective distance ─────────────────────────
+function effDist() {
+  if (cfg.inputMode === 'mouse')    return mouseRatio * cfg.maxDist;
+  if (cfg.inputMode === 'keyboard') {
+    const L = keys['ArrowLeft'] || keys['a'] || keys['A'];
+    const R = keys['ArrowRight'] || keys['d'] || keys['D'];
+    if (L && !R) return 2;
+    if (R && !L) return cfg.maxDist;
+    return cfg.maxDist * 0.5;
+  }
+  return distance;
+}
+
+// ── Init ──────────────────────────────────────
+function init() {
+  score = 0; lives = 3;
+  blocks = []; particles = []; floatTexts = [];
+  blockTimer = 70;
+  nextLane = 'left'; sameStreak = 0;
+  charX = 0.5; charTargetX = 0.5;
+  charPhase = 0; flashT = 0;
+  updateHUD();
+}
+
+// ── Spawn block ───────────────────────────────
+function spawnBlock() {
+  // Decide lane: change direction most of the time, sometimes repeat
+  if (sameStreak >= 2 || Math.random() < 0.58) {
+    nextLane = nextLane === 'left' ? 'right' : 'left';
+    sameStreak = 0;
+  } else {
+    sameStreak++;
+  }
+  const lx = nextLane === 'left' ? LANE_L : LANE_R;
+  blocks.push({ laneX: lx, lane: nextLane, y: -BLK_H * canvas.height, checked: false, hit: false, missed: false });
+}
+
+// ── Burst & float ─────────────────────────────
+function burst(x, y, color, n) {
+  for (let i = 0; i < (n || 10); i++) {
+    const a = (i / (n||10)) * Math.PI * 2 + Math.random() * 0.5;
+    const spd = 2 + Math.random() * 5;
+    particles.push({ x, y, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd,
+      r: 2 + Math.random() * 4, color, alpha: 1, life: 26 + Math.random() * 16 });
+  }
+}
+function floatText(x, y, text, color) {
+  floatTexts.push({ x, y, vy: -2, text, color, alpha: 1, life: 60 });
+}
+
+// ── Update ────────────────────────────────────
+function update() {
+  if (state !== 'playing') return;
+
+  const W = canvas.width, H = canvas.height;
+  distance = distance * 0.55 + rawDist * 0.45;
+  const d = effDist();
+
+  // Character follows sensor
+  charTargetX = d < cfg.threshold ? LANE_L : LANE_R;
+  charX += (charTargetX - charX) * 0.10;
+  charPhase += 0.07;
+
+  // Sensor bar
+  document.getElementById('sensorFill').style.background =
+    d < cfg.threshold ? '#06b6d4' : '#a78bfa';
+
+  // Move blocks
+  const spd = blockSpeed();
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const b = blocks[i];
+    b.y += spd;
+
+    // Check when block reaches character
+    if (!b.checked && b.y >= H * CHAR_Y - 5) {
+      b.checked = true;
+      const diff = Math.abs(charX - b.laneX);
+      if (diff < HIT_TOL) {
+        // HIT — on the right stair!
+        b.hit = true;
+        score++;
+        updateHUD();
+        burst(charX * W, H * CHAR_Y, b.lane === 'left' ? '#06b6d4' : '#a78bfa', 14);
+        floatText(charX * W, H * CHAR_Y - 45, '+1 계단!', b.lane === 'left' ? '#06b6d4' : '#a78bfa');
+        playStep();
+      } else {
+        // MISS — wrong stair!
+        b.missed = true;
+        lives--;
+        updateHUD();
+        burst(charX * W, H * CHAR_Y, '#ff4444', 16);
+        floatText(charX * W, H * CHAR_Y - 50, '아뿔싸!', '#ff4444');
+        playMiss();
+        flashT = 22; flashClr = '#ff0000';
+        if (lives <= 0) { setTimeout(() => { playFall(); endGame(); }, 200); }
+      }
+    }
+
+    if (b.y > H + 50) blocks.splice(i, 1);
+  }
+
+  // Spawn blocks
+  blockTimer--;
+  if (blockTimer <= 0) { spawnBlock(); blockTimer = blockInterval(); }
+
+  // Particles & floats
+  particles.forEach(p => { p.x+=p.vx; p.y+=p.vy; p.vy+=0.09; p.alpha-=1/p.life; p.life--; });
+  particles = particles.filter(p => p.life > 0);
+  floatTexts.forEach(t => { t.y+=t.vy; t.alpha-=1/t.life; t.life--; });
+  floatTexts = floatTexts.filter(t => t.life > 0);
+
+  if (flashT > 0) flashT--;
+}
+
+// ── Draw ──────────────────────────────────────
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  const charY = H * CHAR_Y;
+
+  // Background
+  ctx.fillStyle = hcMode ? '#050505' : '#06080f';
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars
+  if (!hcMode) {
+    ctx.fillStyle = 'rgba(200,220,255,0.35)';
+    for (let i = 0; i < 35; i++) {
+      const sx = (i * 173 + 31) % W;
+      const sy = (i * 127 + 11) % H;
+      ctx.beginPath(); ctx.arc(sx, sy, 0.5 + (i%3)*0.4, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  // Lane separating line
+  ctx.strokeStyle = hcMode ? '#333' : '#12182e';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Lane tint backgrounds
+  ctx.fillStyle = hcMode ? 'rgba(6,182,212,0.04)' : 'rgba(6,182,212,0.03)';
+  ctx.fillRect(0, 0, W/2, H);
+  ctx.fillStyle = hcMode ? 'rgba(167,139,250,0.04)' : 'rgba(167,139,250,0.03)';
+  ctx.fillRect(W/2, 0, W/2, H);
+
+  // Lane labels (top)
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = hcMode ? '#06b6d4' : 'rgba(6,182,212,0.5)';
+  ctx.fillText('← 가까이', W * 0.25, 22);
+  ctx.fillStyle = hcMode ? '#a78bfa' : 'rgba(167,139,250,0.5)';
+  ctx.fillText('멀리 →', W * 0.75, 22);
+  ctx.textAlign = 'left';
+
+  // Blocks
+  blocks.forEach(b => drawBlock(b, W, H));
+
+  // Character
+  if (state === 'playing' || state === 'gameover') drawChar(charX * W, charY);
+
+  // Particles
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.alpha);
+    ctx.shadowColor = p.color; ctx.shadowBlur = 5;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+
+  // Float texts
+  floatTexts.forEach(t => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, t.alpha);
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillStyle = t.color;
+    ctx.textAlign = 'center';
+    ctx.shadowColor = t.color; ctx.shadowBlur = 8;
+    ctx.fillText(t.text, t.x, t.y);
+    ctx.restore();
+  });
+
+  // Character side indicator (bottom bar)
+  if (state === 'playing') {
+    const side = charX < 0.5 ? 'left' : 'right';
+    const indClr = side === 'left' ? '#06b6d4' : '#a78bfa';
+    const indTxt = side === 'left' ? '← 왼쪽 계단' : '오른쪽 계단 →';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = indClr;
+    ctx.textAlign = 'center';
+    ctx.shadowColor = indClr; ctx.shadowBlur = 8;
+    ctx.fillText(indTxt, W/2, H * 0.9);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'left';
+  }
+
+  // Flash overlay
+  if (flashT > 0) {
+    ctx.globalAlpha = (flashT / 22) * 0.42;
+    ctx.fillStyle = flashClr;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ── Draw block ────────────────────────────────
+function drawBlock(b, W, H) {
+  const bw = BLK_W * W;
+  const bh = BLK_H * H;
+  const bx = b.laneX * W - bw / 2;
+  const by = b.y - bh / 2;
+
+  const near    = b.y > H * 0.45;
+  const isLeft  = b.lane === 'left';
+  const mainClr = isLeft ? '#06b6d4' : '#a78bfa';
+  const dimClr  = isLeft ? 'rgba(6,182,212,0.22)' : 'rgba(167,139,250,0.22)';
+
+  ctx.save();
+  ctx.shadowColor = mainClr;
+  ctx.shadowBlur  = near ? 20 : 6;
+
+  // Block body
+  ctx.fillStyle = near ? mainClr : dimClr;
+  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 6); ctx.fill();
+
+  // Block highlight (top edge)
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.beginPath(); ctx.roundRect(bx + 4, by + 3, bw - 8, 4, 2); ctx.fill();
+
+  // Direction arrow on block
+  ctx.shadowBlur = 0;
+  ctx.font = `bold ${near ? 14 : 10}px sans-serif`;
+  ctx.fillStyle = near ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)';
+  ctx.textAlign = 'center';
+  ctx.fillText(isLeft ? '← 가까이' : '멀리 →', b.laneX * W, b.y + 4);
+  ctx.textAlign = 'left';
+
+  // Step number
+  ctx.restore();
+}
+
+// ── Draw character ────────────────────────────
+function drawChar(cx, cy) {
+  const r = Math.min(canvas.width, canvas.height) * 0.032;
+  const lp = Math.sin(charPhase);
+  const isLeft = charX < 0.5;
+  const glowClr = flashT > 0 ? '#ff4444' : (isLeft ? '#06b6d4' : '#a78bfa');
+
+  ctx.save();
+  ctx.strokeStyle = hcMode ? '#ffffff' : '#e8e4f8';
+  ctx.fillStyle   = hcMode ? '#ffffff' : '#e8e4f8';
+  ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.shadowColor = glowClr; ctx.shadowBlur = 14;
+
+  // Head
+  ctx.beginPath(); ctx.arc(cx, cy - r*2.6, r, 0, Math.PI*2); ctx.fill();
+  // Body
+  ctx.beginPath(); ctx.moveTo(cx, cy - r*1.6); ctx.lineTo(cx, cy + r*0.6); ctx.stroke();
+  // Arms (swing)
+  ctx.beginPath(); ctx.moveTo(cx, cy - r); ctx.lineTo(cx - r*1.3, cy - r*0.1 + lp*r*0.4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r*1.3, cy - r*0.1 - lp*r*0.4); ctx.stroke();
+  // Legs (walk)
+  ctx.beginPath(); ctx.moveTo(cx, cy + r*0.6); ctx.lineTo(cx - r*0.8 + lp*r*0.5, cy + r*2.0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy + r*0.6); ctx.lineTo(cx + r*0.8 - lp*r*0.5, cy + r*2.0); ctx.stroke();
+
+  // Hat
+  ctx.fillStyle = hcMode ? '#cc8800' : '#f59e0b';
+  ctx.shadowColor = '#f59e0b'; ctx.shadowBlur = 6;
+  ctx.fillRect(cx - r*0.9, cy - r*3.7, r*1.8, r*0.38);
+  ctx.beginPath();
+  ctx.moveTo(cx - r*0.65, cy - r*3.7); ctx.lineTo(cx - r*0.26, cy - r*4.5);
+  ctx.lineTo(cx + r*0.26, cy - r*4.5); ctx.lineTo(cx + r*0.65, cy - r*3.7);
+  ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.restore();
+}
+
+// ── Loop ──────────────────────────────────────
+function loop() { requestAnimationFrame(loop); update(); draw(); }
+loop();
+
+// ── HUD ───────────────────────────────────────
+function updateHUD() {
+  document.getElementById('scoreDisp').textContent  = score;
+  document.getElementById('hiDisp').textContent     = Math.max(score, getHi()).toLocaleString();
+  document.getElementById('livesDisp').textContent  = '❤'.repeat(Math.max(0, lives));
+}
+
+// ── Game flow ─────────────────────────────────
+function startGame() {
+  init();
+  state = 'playing';
+  document.getElementById('startPanel').classList.add('hidden');
+  document.getElementById('overPanel').classList.add('hidden');
+}
+function endGame() {
+  state = 'gameover';
+  setHi(score);
+  document.getElementById('finalDisp').textContent = score + '칸 올랐어요!';
+  document.getElementById('hiLine').textContent = '최고 기록: ' + getHi() + '칸';
+  document.getElementById('overPanel').classList.remove('hidden');
+  document.getElementById('hiDisp').textContent = getHi().toLocaleString();
+}
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+
+// ── Teacher inputs ────────────────────────────
+canvas.addEventListener('mousemove', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  const r = canvas.getBoundingClientRect();
+  mouseRatio = (e.clientX - r.left) / r.width;
+});
+canvas.addEventListener('touchmove', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  mouseRatio = (e.touches[0].clientX - r.left) / r.width;
+}, { passive: false });
+window.addEventListener('keydown', e => {
+  if (cfg.inputMode !== 'keyboard') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  if (['ArrowLeft','ArrowRight','a','A','d','D'].includes(e.key)) e.preventDefault();
+  keys[e.key] = true;
+});
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// ── Serial ────────────────────────────────────
+serial.onData(v => {
+  rawDist = v;
+  const pct = Math.min((v / cfg.maxDist) * 100, 100);
+  document.getElementById('sensorFill').style.width = pct + '%';
+  document.getElementById('sensorVal').textContent  = v.toFixed(1) + ' cm';
+  document.getElementById('tBigV').textContent      = v.toFixed(1) + ' cm';
+  document.getElementById('tBar').style.width       = pct + '%';
+  document.getElementById('tBar').style.background  = v < cfg.threshold ? '#06b6d4' : '#a78bfa';
+  const isLeft = v < cfg.threshold;
+  const ind = document.getElementById('reactInd');
+  ind.textContent = isLeft ? '← 왼쪽 계단' : '오른쪽 계단 →';
+  ind.className = 'react-ind show ' + (isLeft ? 'left' : 'right');
+  clearTimeout(ind._t);
+  ind._t = setTimeout(() => ind.classList.remove('show'), 900);
+});
+serial.onConnect(() => {
+  document.getElementById('connectBtn').textContent = '🔴 연결됨';
+  document.getElementById('connectBtn').classList.add('connected');
+});
+serial.onDisconnect(() => {
+  document.getElementById('connectBtn').textContent = '🔌 연결';
+  document.getElementById('connectBtn').classList.remove('connected');
+  rawDist = 20; distance = 20;
+});
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) await serial.disconnect();
+  else try { await serial.connect(); } catch(e) { alert(e.message); }
+});
+
+// ── Settings ──────────────────────────────────
+const MODE_LABELS = { sensor: '센서', mouse: '마우스', keyboard: '키보드' };
+function syncModeUI() {
+  document.getElementById('inputModeSelect').value = cfg.inputMode;
+  document.getElementById('inputModeLabel').textContent = MODE_LABELS[cfg.inputMode] || '센서';
+}
+document.getElementById('settBtn').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.toggle('open'));
+document.getElementById('closeSett').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.remove('open'));
+document.getElementById('threshSlider').addEventListener('input', e => {
+  cfg.threshold = +e.target.value;
+  document.getElementById('threshLabel').textContent = cfg.threshold;
+});
+document.getElementById('speedSlider').addEventListener('input', e => {
+  cfg.speedLevel = +e.target.value;
+  document.getElementById('speedLabel').textContent = ['느림','보통','빠름'][cfg.speedLevel - 1];
+});
+document.getElementById('inputModeSelect').addEventListener('change', e => {
+  cfg.inputMode = MODE_LABELS[e.target.value] ? e.target.value : 'sensor';
+  syncModeUI();
+});
+document.getElementById('hiDisp').textContent = getHi().toLocaleString();
+syncModeUI();
+</script>
+</body>
+</html>

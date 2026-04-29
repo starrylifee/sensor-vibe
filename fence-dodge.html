@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>울타리를 조심해! — EZMaker</title>
+<style>
+  :root{--bg:#06080f;--panel:#0a0c18;--border:#1a1e40;--accent:#a78bfa;
+    --success:#00ff88;--danger:#ff4444;--muted:#64748b;--text:#e2e8f0;}
+  body.hc{--bg:#000;--panel:#111;--border:#fff;--text:#fff;--muted:#ddd;}
+  body.hc .overlay{background:rgba(0,0,0,.97);}
+  body.hc #settPanel{background:#111;border-color:#fff;}
+  body.hc .testbox{background:#1a1a1a;border-color:#fff;}
+  body.hc .srow select{background:#1a1a1a;border-color:#fff;color:#fff;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+    height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+
+  #topbar{width:100%;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);gap:8px;flex-shrink:0;}
+  #topbar a{color:var(--muted);text-decoration:none;font-size:.8rem;}
+  #topbar a:hover{color:var(--accent);}
+  .stat{text-align:center;}
+  .stat .label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat .value{font-size:1.05rem;font-weight:700;color:var(--accent);font-family:monospace;}
+
+  #gameWrap{position:relative;flex:1;width:100%;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+
+  #sensorBar{width:100%;background:var(--panel);border-top:1px solid var(--border);
+    padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  #sensorBar .label{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  #sensorMeter{flex:1;height:8px;background:#1a1a3a;border-radius:4px;overflow:hidden;}
+  #sensorFill{height:100%;background:var(--accent);border-radius:4px;transition:width .05s;width:50%;}
+  #sensorVal{font-size:.75rem;font-family:monospace;color:var(--accent);min-width:52px;text-align:right;}
+
+  button.ctrl{background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;
+    padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;}
+  button.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+  button.ctrl.connected{border-color:var(--success);color:var(--success);}
+
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.88);z-index:10;flex-direction:column;gap:14px;padding:28px;text-align:center;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-size:1.5rem;font-weight:900;color:var(--accent);}
+  .overlay .sub{color:var(--muted);font-size:.85rem;line-height:2;max-width:360px;}
+  .btn{background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 28px;
+    font-size:.95rem;font-weight:700;cursor:pointer;min-width:140px;}
+
+  #settPanel{position:absolute;top:0;right:0;bottom:0;width:min(300px,100%);background:var(--panel);
+    border-left:1px solid var(--border);z-index:20;padding:20px;overflow-y:auto;
+    transform:translateX(100%);transition:transform .3s;}
+  #settPanel.open{transform:translateX(0);}
+  #settPanel h3{color:var(--accent);margin-bottom:18px;}
+  .srow{margin-bottom:16px;}
+  .srow label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;}
+  .srow input[type=range]{width:100%;accent-color:var(--accent);}
+  .srow select{width:100%;background:#0a0a18;border:1px solid var(--border);color:var(--text);
+    border-radius:8px;padding:8px 10px;}
+  .testbox{background:#0a0c18;border:1px solid var(--border);border-radius:8px;padding:14px;
+    margin-bottom:16px;text-align:center;}
+  .testbox .bigv{font-size:2rem;font-weight:900;font-family:monospace;color:var(--accent);}
+  .testbox .hint{font-size:.72rem;color:var(--muted);margin-top:4px;}
+  .testbar{height:10px;background:#1a1a3a;border-radius:5px;overflow:hidden;margin-top:8px;}
+  .testbar div{height:100%;background:var(--accent);border-radius:5px;transition:width .05s;width:0%;}
+  .react-ind{display:inline-block;margin-top:8px;padding:3px 12px;border-radius:12px;font-size:.75rem;
+    font-weight:700;background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.4);
+    color:var(--accent);opacity:0;transition:opacity .15s;}
+  .react-ind.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div style="display:flex;gap:14px">
+    <div class="stat"><div class="label">통과</div><div class="value" id="scoreDisp">0</div></div>
+    <div class="stat"><div class="label">최고</div><div class="value" id="hiDisp">0</div></div>
+  </div>
+  <div style="display:flex;gap:6px">
+    <button class="ctrl" id="hcToggle" onclick="toggleHC()" title="고대비 모드">☀️</button>
+    <button class="ctrl" id="settBtn">⚙️</button>
+  </div>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+
+  <div class="overlay" id="startPanel">
+    <h2>🐑 울타리를 조심해!</h2>
+    <div class="sub">
+      초음파 센서로 양의 높이를 조절하세요!<br><br>
+      📡 <strong>손을 가까이</strong> → 양이 위로 올라가요<br>
+      📡 <strong>손을 멀리</strong> → 양이 아래로 내려가요<br><br>
+      위아래 울타리 사이 틈을 통과하세요!<br>
+      울타리에 닿으면 처음부터 다시 시작!
+    </div>
+    <button class="btn" id="startBtn">시작!</button>
+  </div>
+
+  <div class="overlay hidden" id="overPanel">
+    <h2>💥 울타리에 부딪혔어요!</h2>
+    <div style="font-size:1.8rem;color:var(--accent);font-family:monospace" id="finalDisp"></div>
+    <div style="color:var(--muted);font-size:.82rem;margin-top:4px" id="hiLine"></div>
+    <button class="btn" id="restartBtn" style="margin-top:8px">다시 시작!</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem">← 목록으로</a>
+  </div>
+</div>
+
+<div id="sensorBar">
+  <span class="label">거리</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">— cm</span>
+  <button class="ctrl" id="connectBtn">🔌 연결</button>
+</div>
+
+<div id="settPanel">
+  <h3>⚙️ 센서 · 입력 설정</h3>
+  <div class="testbox">
+    <div class="bigv" id="tBigV">— cm</div>
+    <div class="hint">초음파 센서 거리 (0~400cm)</div>
+    <div class="testbar"><div id="tBar"></div></div>
+    <div class="react-ind" id="reactInd">반응 중</div>
+  </div>
+  <div class="srow">
+    <label>최대 거리: <strong id="maxDistLabel">40</strong> cm</label>
+    <input type="range" id="maxDistSlider" min="10" max="100" value="40">
+    <div style="font-size:.72rem;color:var(--muted);margin-top:4px">
+      이 거리가 양의 맨 아래 위치입니다.
+    </div>
+  </div>
+  <div class="srow">
+    <label>울타리 간격: <strong id="gapLabel">보통</strong></label>
+    <input type="range" id="gapSlider" min="1" max="3" value="2" step="1">
+  </div>
+  <div class="srow">
+    <label>속도: <strong id="speedLabel">보통</strong></label>
+    <input type="range" id="speedSlider" min="1" max="3" value="2" step="1">
+  </div>
+  <div class="srow">
+    <label>입력 모드: <strong id="inputModeLabel">센서</strong></label>
+    <select id="inputModeSelect">
+      <option value="sensor">센서만 사용</option>
+      <option value="mouse">마우스 (위아래)</option>
+      <option value="keyboard">키보드 (↑↓)</option>
+    </select>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:6px">기본 조작은 센서입니다.</div>
+  </div>
+  <button class="btn" id="closeSett" style="width:100%">닫기</button>
+</div>
+
+<script src="js/serial.js"></script>
+<script src="js/keyboard-lock.js"></script>
+<script>
+// ── Canvas ────────────────────────────────────
+const canvas = document.getElementById('gc');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('gameWrap');
+function resize() { canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight; }
+resize(); window.addEventListener('resize', resize);
+
+// ── Serial ────────────────────────────────────
+const serial = new SerialManager();
+let rawDist = 20, distance = 20;
+const cfg = { maxDist: 40, gapLevel: 2, speedLevel: 2, inputMode: 'sensor' };
+
+// ── HC mode ───────────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  document.getElementById('hcToggle').textContent = hcMode ? '🌙' : '☀️';
+}
+function toggleHC() {
+  hcMode = !hcMode;
+  localStorage.setItem('hc_mode', hcMode ? '1' : '0');
+  applyHC();
+}
+applyHC();
+
+// ── Hi-score ──────────────────────────────────
+const LB_KEY = 'fencedodge_hi';
+function getHi() { return +localStorage.getItem(LB_KEY) || 0; }
+function setHi(s) { if (s > getHi()) localStorage.setItem(LB_KEY, s); }
+
+// ── Audio ─────────────────────────────────────
+let ac = null;
+function getAC() {
+  if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+  return ac;
+}
+function tone(freq, dur, type, vol, delay) {
+  try {
+    const a = getAC(), osc = a.createOscillator(), g = a.createGain();
+    osc.connect(g); g.connect(a.destination);
+    osc.frequency.value = freq; osc.type = type || 'sine';
+    const t0 = a.currentTime + (delay || 0);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol || 0.14, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.start(t0); osc.stop(t0 + dur + 0.01);
+  } catch(e) {}
+}
+function playPass()  { tone(660,.08,'sine',.13); tone(880,.12,'sine',.13,.09); }
+function playCrash() {
+  tone(200,.08,'sawtooth',.2); tone(150,.15,'sawtooth',.18,.07); tone(100,.3,'sawtooth',.15,.2);
+}
+function playMove()  { tone(500,.03,'sine',.04); }
+
+// ── Helpers ───────────────────────────────────
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+// ── Config helpers ────────────────────────────
+function fenceSpeed()  { return [2.2, 3.4, 5.0][cfg.speedLevel - 1]; }
+function gapRatio()    { return [0.42, 0.33, 0.25][cfg.gapLevel - 1]; }
+function spawnInterval(){ return Math.max(90, 200 - score * 3); }
+
+// ── State ─────────────────────────────────────
+let state = 'menu';
+let score = 0;
+let fences = [];
+let fenceTimer = 0;
+let particles = [];
+let flashT = 0;
+let sheepY = 0;
+let sheepTargetY = 0;
+let sheepPhase = 0;
+let mouseRatio = 0.5;
+const keys = {};
+
+// ── Effective distance → sheep Y ──────────────
+function effDist() {
+  if (cfg.inputMode === 'mouse')    return mouseRatio * cfg.maxDist;
+  if (cfg.inputMode === 'keyboard') {
+    const up   = keys['ArrowUp']   || keys['w'] || keys['W'];
+    const down = keys['ArrowDown'] || keys['s'] || keys['S'];
+    if (up && !down) return Math.max(0, (sheepY / canvas.height) * cfg.maxDist - 1.5);
+    if (down && !up) return Math.min(cfg.maxDist, (sheepY / canvas.height) * cfg.maxDist + 1.5);
+    return (sheepY / canvas.height) * cfg.maxDist;
+  }
+  return distance;
+}
+
+// ── Init ──────────────────────────────────────
+function init() {
+  score = 0;
+  fences = []; particles = [];
+  fenceTimer = 80;
+  flashT = 0;
+  sheepY = canvas.height / 2;
+  sheepTargetY = sheepY;
+  sheepPhase = 0;
+  updateHUD();
+}
+
+// ── Spawn fence pair ──────────────────────────
+function spawnFence() {
+  const H = canvas.height;
+  const gapH = H * gapRatio();
+  // Random gap center (stay within safe zone)
+  const margin = H * 0.08;
+  const gapCenter = margin + gapH / 2 + Math.random() * (H - margin * 2 - gapH);
+  fences.push({
+    x: canvas.width + 10,
+    w: 52,
+    gapTop: gapCenter - gapH / 2,
+    gapBot: gapCenter + gapH / 2,
+    passed: false,
+  });
+}
+
+// ── Burst ─────────────────────────────────────
+function burst(x, y, color, n) {
+  for (let i = 0; i < (n || 12); i++) {
+    const a = (i / (n || 12)) * Math.PI * 2 + Math.random() * 0.5;
+    const spd = 2 + Math.random() * 5;
+    particles.push({ x, y, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd,
+      r: 2 + Math.random() * 4, color, alpha: 1, life: 28 + Math.random() * 18 });
+  }
+}
+
+// ── Update ────────────────────────────────────
+function update() {
+  if (state !== 'playing') return;
+
+  const W = canvas.width, H = canvas.height;
+
+  // Smooth sensor
+  distance = distance * 0.55 + rawDist * 0.45;
+
+  // Sheep target Y (close=top, far=bottom)
+  const d = effDist();
+  const norm = Math.min(Math.max(d / cfg.maxDist, 0), 1);
+  sheepTargetY = H * 0.07 + norm * H * 0.86;
+  const prevY = sheepY;
+  sheepY += (sheepTargetY - sheepY) * 0.12;
+
+  // Sheep animation
+  sheepPhase += 0.08;
+  if (Math.abs(sheepY - prevY) > 0.5 && Math.floor(sheepPhase * 4) % 8 === 0) playMove();
+
+  const sheepR = sheepRadius();
+  const sheepX = W * 0.22;
+
+  // Move fences
+  const spd = fenceSpeed();
+  for (let i = fences.length - 1; i >= 0; i--) {
+    const f = fences[i];
+    f.x -= spd;
+
+    // Score: sheep passed the fence
+    if (!f.passed && f.x + f.w < sheepX - sheepR) {
+      f.passed = true;
+      score++;
+      updateHUD();
+      burst(sheepX + 30, sheepY, '#a78bfa', 14);
+      playPass();
+    }
+
+    // Collision with sheep
+    const left  = f.x;
+    const right = f.x + f.w;
+    if (sheepX + sheepR > left && sheepX - sheepR < right) {
+      // Top fence collision
+      if (sheepY - sheepR < f.gapTop) {
+        doCollide(sheepX, sheepY); return;
+      }
+      // Bottom fence collision
+      if (sheepY + sheepR > f.gapBot) {
+        doCollide(sheepX, sheepY); return;
+      }
+    }
+
+    if (f.x + f.w < 0) fences.splice(i, 1);
+  }
+
+  // Spawn fences
+  fenceTimer--;
+  if (fenceTimer <= 0) {
+    spawnFence();
+    fenceTimer = spawnInterval();
+  }
+
+  // Particles
+  particles.forEach(p => { p.x+=p.vx; p.y+=p.vy; p.vy+=0.09; p.alpha-=1/p.life; p.life--; });
+  particles = particles.filter(p => p.life > 0);
+
+  if (flashT > 0) flashT--;
+}
+
+function sheepRadius() { return Math.min(canvas.width, canvas.height) * 0.055; }
+
+function doCollide(x, y) {
+  burst(x, y, '#ff4444', 22);
+  playCrash();
+  flashT = 25;
+  state = 'gameover';
+  setHi(score);
+  document.getElementById('finalDisp').textContent = score + '개 통과!';
+  document.getElementById('hiLine').textContent = '최고 기록: ' + getHi() + '개';
+  document.getElementById('overPanel').classList.remove('hidden');
+  document.getElementById('hiDisp').textContent = getHi().toLocaleString();
+}
+
+// ── Draw ──────────────────────────────────────
+function draw() {
+  const W = canvas.width, H = canvas.height;
+
+  // Background (sky)
+  ctx.fillStyle = hcMode ? '#050505' : '#06080f';
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars
+  if (!hcMode) {
+    ctx.fillStyle = 'rgba(200,200,255,0.4)';
+    for (let i = 0; i < 40; i++) {
+      const sx = (i * 157 + 23) % W;
+      const sy = (i * 113 + 7)  % H;
+      ctx.beginPath(); ctx.arc(sx, sy, 0.6 + (i%3)*0.4, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  // Ground strips (top & bottom grass)
+  ctx.fillStyle = hcMode ? '#1a2a0a' : '#0d1a08';
+  ctx.fillRect(0, 0, W, H * 0.04);
+  ctx.fillRect(0, H * 0.96, W, H * 0.04);
+
+  // Fences
+  fences.forEach(f => drawFence(f, H));
+
+  // Sheep
+  if (state === 'playing' || state === 'gameover') {
+    drawSheep(canvas.width * 0.22, sheepY, sheepPhase);
+  }
+
+  // Particles
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.alpha);
+    ctx.shadowColor = p.color; ctx.shadowBlur = 5;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+
+  // Flash
+  if (flashT > 0) {
+    ctx.globalAlpha = (flashT / 25) * 0.45;
+    ctx.fillStyle = '#ff2222';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  // Sensor position indicator (right side, vertical bar)
+  if (state === 'playing') {
+    const d = effDist();
+    const norm = Math.min(Math.max(d / cfg.maxDist, 0), 1);
+    const barH = H * 0.7, barX = W - 18, barY = H * 0.15;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.roundRect(barX - 5, barY, 10, barH, 4); ctx.fill();
+    const indY = barY + norm * barH;
+    ctx.fillStyle = '#a78bfa';
+    ctx.shadowColor = '#a78bfa'; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(barX, indY, 5, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Labels
+    ctx.font = '9px monospace';
+    ctx.fillStyle = hcMode ? '#fff' : '#a78bfa';
+    ctx.textAlign = 'center';
+    ctx.fillText('↑', barX, barY - 4);
+    ctx.fillText('↓', barX, barY + barH + 12);
+    ctx.textAlign = 'left';
+  }
+}
+
+// ── Draw fence ────────────────────────────────
+function drawFence(f, H) {
+  const x = f.x, w = f.w;
+  const fenceClr  = hcMode ? '#5a3a18' : '#3a2210';
+  const borderClr = hcMode ? '#9a6a38' : '#6a4220';
+  const capClr    = hcMode ? '#7a5a28' : '#5a3418';
+
+  // Top fence (from top to gapTop)
+  if (f.gapTop > 0) {
+    ctx.fillStyle = fenceClr;
+    ctx.fillRect(x, 0, w, f.gapTop);
+    // Plank lines
+    ctx.strokeStyle = borderClr;
+    ctx.lineWidth = 1;
+    for (let gy = 20; gy < f.gapTop; gy += 20) {
+      ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x+w, gy); ctx.stroke();
+    }
+    // Cap at bottom
+    ctx.fillStyle = capClr;
+    ctx.beginPath(); ctx.roundRect(x - 5, f.gapTop - 14, w + 10, 14, [0, 0, 6, 6]); ctx.fill();
+    ctx.strokeStyle = borderClr; ctx.lineWidth = 1.5;
+    ctx.strokeRect(x - 5, f.gapTop - 14, w + 10, 14);
+  }
+
+  // Bottom fence (from gapBot to bottom)
+  if (f.gapBot < H) {
+    ctx.fillStyle = fenceClr;
+    ctx.fillRect(x, f.gapBot, w, H - f.gapBot);
+    // Plank lines
+    ctx.strokeStyle = borderClr;
+    ctx.lineWidth = 1;
+    for (let gy = f.gapBot + 20; gy < H; gy += 20) {
+      ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x+w, gy); ctx.stroke();
+    }
+    // Cap at top
+    ctx.fillStyle = capClr;
+    ctx.beginPath(); ctx.roundRect(x - 5, f.gapBot, w + 10, 14, [6, 6, 0, 0]); ctx.fill();
+    ctx.strokeStyle = borderClr; ctx.lineWidth = 1.5;
+    ctx.strokeRect(x - 5, f.gapBot, w + 10, 14);
+  }
+
+  // Gap glow (safe zone hint)
+  ctx.save();
+  ctx.shadowColor = '#a78bfa';
+  ctx.shadowBlur = 6;
+  ctx.strokeStyle = 'rgba(167,139,250,0.18)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x, f.gapTop); ctx.lineTo(x+w, f.gapTop); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, f.gapBot); ctx.lineTo(x+w, f.gapBot); ctx.stroke();
+  ctx.restore();
+}
+
+// ── Draw sheep ────────────────────────────────
+function drawSheep(cx, cy, phase) {
+  const R = sheepRadius();
+  const bob = Math.sin(phase) * R * 0.06;
+  const cy2 = cy + bob;
+
+  const fluffClr = hcMode ? '#dddddd' : '#e8e4f8';
+  const headClr  = hcMode ? '#cccccc' : '#f0eaff';
+  const glow = flashT > 0 ? '#ff4444' : '#a78bfa';
+
+  ctx.save();
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = flashT > 0 ? 24 : 14;
+
+  // Body (fluffy ellipse)
+  ctx.fillStyle = fluffClr;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy2, R, R * 0.82, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Fluffy bumps
+  ctx.shadowBlur = 5;
+  ctx.fillStyle = hcMode ? '#cccccc' : '#d8d4ee';
+  const bumps = 7;
+  for (let i = 0; i < bumps; i++) {
+    const a = (i / bumps) * Math.PI * 2;
+    const bx = cx + Math.cos(a) * R * 0.75;
+    const by = cy2 + Math.sin(a) * R * 0.62;
+    ctx.beginPath(); ctx.arc(bx, by, R * 0.32, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Head (top)
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = headClr;
+  ctx.beginPath(); ctx.arc(cx, cy2 - R * 0.82, R * 0.38, 0, Math.PI*2); ctx.fill();
+
+  // Ears
+  ctx.fillStyle = '#f0d0d8';
+  ctx.beginPath(); ctx.ellipse(cx - R*0.3, cy2 - R*1.1, R*0.12, R*0.2, -0.4, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx + R*0.3, cy2 - R*1.1, R*0.12, R*0.2,  0.4, 0, Math.PI*2); ctx.fill();
+
+  // Hat (like the sketch)
+  ctx.fillStyle = hcMode ? '#cc8800' : '#f59e0b';
+  ctx.shadowColor = '#f59e0b'; ctx.shadowBlur = 6;
+  ctx.fillRect(cx - R*0.38, cy2 - R*1.25, R*0.76, R*0.18);
+  ctx.beginPath(); ctx.moveTo(cx - R*0.28, cy2 - R*1.25); ctx.lineTo(cx - R*0.12, cy2 - R*1.65);
+  ctx.lineTo(cx + R*0.12, cy2 - R*1.65); ctx.lineTo(cx + R*0.28, cy2 - R*1.25); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Eyes
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.arc(cx - R*0.13, cy2 - R*0.85, R*0.07, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + R*0.13, cy2 - R*0.85, R*0.07, 0, Math.PI*2); ctx.fill();
+
+  // Arms raised (like the sketch!)
+  ctx.strokeStyle = fluffClr; ctx.lineWidth = R*0.18; ctx.lineCap = 'round';
+  const armBob = Math.sin(phase * 1.5) * 0.1;
+  ctx.beginPath(); ctx.moveTo(cx - R*0.7, cy2 - R*0.1);
+  ctx.lineTo(cx - R*1.2, cy2 - R*0.7 + armBob * R); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + R*0.7, cy2 - R*0.1);
+  ctx.lineTo(cx + R*1.2, cy2 - R*0.7 - armBob * R); ctx.stroke();
+
+  // Legs
+  ctx.lineWidth = R*0.14;
+  ctx.beginPath(); ctx.moveTo(cx - R*0.3, cy2 + R*0.7); ctx.lineTo(cx - R*0.4, cy2 + R*1.1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + R*0.3, cy2 + R*0.7); ctx.lineTo(cx + R*0.4, cy2 + R*1.1); ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── Main loop ─────────────────────────────────
+function loop() { requestAnimationFrame(loop); update(); draw(); }
+loop();
+
+// ── HUD ───────────────────────────────────────
+function updateHUD() {
+  document.getElementById('scoreDisp').textContent = score;
+  document.getElementById('hiDisp').textContent = Math.max(score, getHi()).toLocaleString();
+}
+
+// ── Game flow ─────────────────────────────────
+function startGame() {
+  init();
+  state = 'playing';
+  document.getElementById('startPanel').classList.add('hidden');
+  document.getElementById('overPanel').classList.add('hidden');
+}
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+
+// ── Teacher inputs ────────────────────────────
+canvas.addEventListener('mousemove', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  const r = canvas.getBoundingClientRect();
+  mouseRatio = (e.clientY - r.top) / r.height;
+});
+canvas.addEventListener('touchmove', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  mouseRatio = (e.touches[0].clientY - r.top) / r.height;
+}, { passive: false });
+
+window.addEventListener('keydown', e => {
+  if (cfg.inputMode !== 'keyboard') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  if (['ArrowUp','ArrowDown','w','W','s','S'].includes(e.key)) e.preventDefault();
+  keys[e.key] = true;
+});
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// ── Serial ────────────────────────────────────
+serial.onData(v => {
+  rawDist = v;
+  const pct = Math.min((v / cfg.maxDist) * 100, 100);
+  document.getElementById('sensorFill').style.width = pct + '%';
+  document.getElementById('sensorVal').textContent  = v.toFixed(1) + ' cm';
+  document.getElementById('tBigV').textContent      = v.toFixed(1) + ' cm';
+  document.getElementById('tBar').style.width       = pct + '%';
+  const ind = document.getElementById('reactInd');
+  ind.textContent = v < cfg.maxDist * 0.4 ? '↑ 위쪽' : v < cfg.maxDist * 0.7 ? '↔ 중간' : '↓ 아래쪽';
+  ind.classList.add('show');
+  clearTimeout(ind._t);
+  ind._t = setTimeout(() => ind.classList.remove('show'), 800);
+});
+serial.onConnect(() => {
+  document.getElementById('connectBtn').textContent = '🔴 연결됨';
+  document.getElementById('connectBtn').classList.add('connected');
+});
+serial.onDisconnect(() => {
+  document.getElementById('connectBtn').textContent = '🔌 연결';
+  document.getElementById('connectBtn').classList.remove('connected');
+  rawDist = 20; distance = 20;
+});
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) await serial.disconnect();
+  else try { await serial.connect(); } catch(e) { alert(e.message); }
+});
+
+// ── Settings ──────────────────────────────────
+const MODE_LABELS = { sensor: '센서', mouse: '마우스', keyboard: '키보드' };
+function syncModeUI() {
+  document.getElementById('inputModeSelect').value = cfg.inputMode;
+  document.getElementById('inputModeLabel').textContent = MODE_LABELS[cfg.inputMode] || '센서';
+}
+document.getElementById('settBtn').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.toggle('open'));
+document.getElementById('closeSett').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.remove('open'));
+document.getElementById('maxDistSlider').addEventListener('input', e => {
+  cfg.maxDist = +e.target.value;
+  document.getElementById('maxDistLabel').textContent = cfg.maxDist;
+});
+document.getElementById('gapSlider').addEventListener('input', e => {
+  cfg.gapLevel = +e.target.value;
+  document.getElementById('gapLabel').textContent = ['넓게','보통','좁게'][cfg.gapLevel - 1];
+});
+document.getElementById('speedSlider').addEventListener('input', e => {
+  cfg.speedLevel = +e.target.value;
+  document.getElementById('speedLabel').textContent = ['느림','보통','빠름'][cfg.speedLevel - 1];
+});
+document.getElementById('inputModeSelect').addEventListener('change', e => {
+  cfg.inputMode = MODE_LABELS[e.target.value] ? e.target.value : 'sensor';
+  syncModeUI();
+});
+
+document.getElementById('hiDisp').textContent = getHi().toLocaleString();
+syncModeUI();
+</script>
+</body>
+</html>

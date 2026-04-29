@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>차피하기 횡단보도 — EZMaker</title>
+<style>
+  :root {
+    --bg:#05080f;--panel:#0a0e1a;--border:#1a2040;
+    --accent:#fbbf24;--success:#00ff88;--danger:#ff4444;
+    --road:#1a1a2e;--sidewalk:#1a2e1a;--muted:#64748b;--text:#e2e8f0;
+  }
+  body.hc{--bg:#000;--panel:#111;--border:#fff;--text:#fff;--muted:#ddd;}
+  body.hc .overlay{background:rgba(0,0,0,.97);}
+  body.hc #settPanel{background:#111;border-color:#fff;}
+  body.hc .testbox{background:#1a1a1a;border-color:#fff;}
+  body.hc .srow select{background:#1a1a1a;border-color:#fff;color:#fff;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+    height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+
+  #topbar{width:100%;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);gap:8px;flex-shrink:0;}
+  #topbar a{color:var(--muted);text-decoration:none;font-size:.8rem;}
+  #topbar a:hover{color:var(--accent);}
+  .stat{text-align:center;}
+  .stat .label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat .value{font-size:1.05rem;font-weight:700;color:var(--accent);font-family:monospace;}
+
+  #gameWrap{position:relative;flex:1;width:100%;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+
+  #sensorBar{width:100%;background:var(--panel);border-top:1px solid var(--border);
+    padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  #sensorBar .label{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  #sensorMeter{flex:1;height:8px;background:#1a1a3a;border-radius:4px;overflow:hidden;}
+  #sensorFill{height:100%;background:var(--accent);border-radius:4px;transition:width .05s,background .15s;width:0%;}
+  #sensorVal{font-size:.75rem;font-family:monospace;color:var(--accent);min-width:52px;text-align:right;}
+
+  button.ctrl{background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;
+    padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;}
+  button.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+  button.ctrl.connected{border-color:var(--success);color:var(--success);}
+
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.88);z-index:10;flex-direction:column;gap:14px;padding:28px;text-align:center;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-size:1.5rem;font-weight:900;color:var(--accent);}
+  .overlay .sub{color:var(--muted);font-size:.85rem;line-height:1.9;max-width:360px;}
+  .btn{background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 28px;
+    font-size:.95rem;font-weight:700;cursor:pointer;min-width:140px;}
+
+  #settPanel{position:absolute;top:0;right:0;bottom:0;width:min(300px,100%);background:var(--panel);
+    border-left:1px solid var(--border);z-index:20;padding:20px;overflow-y:auto;
+    transform:translateX(100%);transition:transform .3s;}
+  #settPanel.open{transform:translateX(0);}
+  #settPanel h3{color:var(--accent);margin-bottom:18px;}
+  .srow{margin-bottom:16px;}
+  .srow label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;}
+  .srow input[type=range]{width:100%;accent-color:var(--accent);}
+  .srow select{width:100%;background:#0a0a18;border:1px solid var(--border);color:var(--text);
+    border-radius:8px;padding:8px 10px;}
+  .testbox{background:#0a0e1a;border:1px solid var(--border);border-radius:8px;padding:14px;
+    margin-bottom:16px;text-align:center;}
+  .testbox .bigv{font-size:2rem;font-weight:900;font-family:monospace;color:var(--accent);}
+  .testbox .hint{font-size:.72rem;color:var(--muted);margin-top:4px;}
+  .testbar{height:10px;background:#1a1a3a;border-radius:5px;overflow:hidden;margin-top:8px;}
+  .testbar div{height:100%;background:var(--accent);border-radius:5px;transition:width .05s,background .15s;width:0%;}
+  .react-ind{display:inline-block;margin-top:8px;padding:3px 10px;border-radius:12px;font-size:.75rem;
+    font-weight:700;background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.3);
+    color:var(--success);opacity:0;transition:opacity .15s;}
+  .react-ind.danger{background:rgba(255,68,68,.1);border-color:rgba(255,68,68,.3);color:var(--danger);}
+  .react-ind.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div style="display:flex;gap:14px">
+    <div class="stat"><div class="label">건넌 횟수</div><div class="value" id="scoreDisp">0</div></div>
+    <div class="stat"><div class="label">최고</div><div class="value" id="hiDisp">0</div></div>
+    <div class="stat"><div class="label">목숨</div><div class="value" id="livesDisp">❤❤❤</div></div>
+  </div>
+  <div style="display:flex;gap:6px">
+    <button class="ctrl" id="hcToggle" onclick="toggleHC()" title="고대비 모드 (직사광선용)">☀️</button>
+    <button class="ctrl" id="settBtn">⚙️</button>
+  </div>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+
+  <div class="overlay" id="startPanel">
+    <h2>🚶 차피하기 횡단보도</h2>
+    <div class="sub">
+      초음파 센서로 신호등을 조작해요!<br><br>
+      📡 <strong>손을 멀리</strong> → 🟢 파란 신호<br>
+      → 시각장애인이 횡단보도를 건넙니다<br><br>
+      📡 <strong>손을 가까이</strong> → 🔴 빨간 신호<br>
+      → 차가 씽씽 지나갑니다<br><br>
+      차에 치이면 목숨을 잃어요! 3번 잃으면 게임 오버
+    </div>
+    <button class="btn" id="startBtn">시작!</button>
+  </div>
+
+  <div class="overlay hidden" id="overPanel">
+    <h2>💥 게임 오버</h2>
+    <div style="font-size:1.6rem;color:var(--accent);font-family:monospace;margin:4px 0" id="finalDisp"></div>
+    <div style="color:var(--muted);font-size:.82rem" id="hiLine"></div>
+    <button class="btn" id="restartBtn" style="margin-top:6px">다시 시작</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem">← 목록으로</a>
+  </div>
+</div>
+
+<div id="sensorBar">
+  <span class="label">거리</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">— cm</span>
+  <button class="ctrl" id="connectBtn">🔌 연결</button>
+</div>
+
+<div id="settPanel">
+  <h3>⚙️ 센서 · 입력 설정</h3>
+  <div class="testbox">
+    <div class="bigv" id="tBigV">— cm</div>
+    <div class="hint">초음파 센서 거리 (0~400cm)</div>
+    <div class="testbar"><div id="tBar"></div></div>
+    <div class="react-ind" id="reactInd">안전</div>
+  </div>
+  <div class="srow">
+    <label>기준 거리: <strong id="threshLabel">20</strong> cm</label>
+    <input type="range" id="threshSlider" min="5" max="60" value="20">
+    <div style="font-size:.72rem;color:var(--muted);margin-top:4px">
+      이 거리보다 가까우면 🔴 빨간 신호, 멀면 🟢 파란 신호
+    </div>
+  </div>
+  <div class="srow">
+    <label>차 속도: <strong id="speedLabel">보통</strong></label>
+    <input type="range" id="speedSlider" min="1" max="3" value="2" step="1">
+  </div>
+  <div class="srow">
+    <label>입력 모드: <strong id="inputModeLabel">센서</strong></label>
+    <select id="inputModeSelect">
+      <option value="sensor">센서만 사용</option>
+      <option value="mouse">마우스 / 터치</option>
+      <option value="keyboard">키보드 (스페이스바)</option>
+    </select>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:6px">기본 조작은 센서입니다.</div>
+  </div>
+  <button class="btn" id="closeSett" style="width:100%">닫기</button>
+</div>
+
+<script src="js/serial.js"></script>
+<script src="js/keyboard-lock.js"></script>
+<script>
+// ── Canvas ────────────────────────────────────
+const canvas = document.getElementById('gc');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('gameWrap');
+function resize() { canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight; }
+resize(); window.addEventListener('resize', resize);
+
+// ── Serial & sensor ───────────────────────────
+const serial = new SerialManager();
+let rawDist = 30, distance = 30;
+const cfg = { threshold: 20, maxDist: 40, speedLevel: 2, inputMode: 'sensor' };
+
+// ── HC mode ───────────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  document.getElementById('hcToggle').textContent = hcMode ? '🌙' : '☀️';
+}
+function toggleHC() {
+  hcMode = !hcMode;
+  localStorage.setItem('hc_mode', hcMode ? '1' : '0');
+  applyHC();
+}
+applyHC();
+
+// ── High score ────────────────────────────────
+const LB_KEY = 'crosswalk_hi';
+function getHi() { return +localStorage.getItem(LB_KEY) || 0; }
+function setHi(s) { if (s > getHi()) localStorage.setItem(LB_KEY, s); }
+
+// ── Audio ─────────────────────────────────────
+let ac = null;
+function getAC() {
+  if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+  return ac;
+}
+function tone(freq, dur, type, vol, delay) {
+  try {
+    const a = getAC();
+    const osc = a.createOscillator();
+    const g = a.createGain();
+    osc.connect(g); g.connect(a.destination);
+    osc.frequency.value = freq;
+    osc.type = type || 'sine';
+    const t0 = a.currentTime + (delay || 0);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol || 0.15, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.01);
+  } catch(e) {}
+}
+function playGreen() {
+  tone(660, 0.10, 'sine', 0.15, 0.00);
+  tone(880, 0.10, 'sine', 0.15, 0.14);
+  tone(1100,0.18, 'sine', 0.15, 0.28);
+}
+function playRed() {
+  tone(440, 0.08, 'square', 0.10, 0.00);
+  tone(440, 0.08, 'square', 0.10, 0.13);
+  tone(380, 0.12, 'square', 0.10, 0.26);
+}
+function playCrash() {
+  tone(200, 0.08, 'sawtooth', 0.20, 0.00);
+  tone(160, 0.12, 'sawtooth', 0.18, 0.07);
+  tone(120, 0.25, 'sawtooth', 0.15, 0.18);
+}
+function playSuccess() {
+  tone(523, 0.08, 'sine', 0.14, 0.00);
+  tone(659, 0.08, 'sine', 0.14, 0.10);
+  tone(784, 0.10, 'sine', 0.14, 0.20);
+  tone(1047,0.22, 'sine', 0.14, 0.32);
+}
+
+// ── Layout ────────────────────────────────────
+function L() {
+  const W = canvas.width, H = canvas.height;
+  const swH = Math.max(45, H * 0.13);   // sidewalk height
+  const roadH = H - swH * 2;
+  const laneH = roadH / 2;
+  const cwX = W * 0.38, cwW = W * 0.24;
+  return { W, H, swH, roadH, laneH,
+    topSW:    { y: 0,            h: swH  },
+    lane1:    { y: swH,          h: laneH },
+    lane2:    { y: swH + laneH,  h: laneH },
+    botSW:    { y: H - swH,      h: swH  },
+    cwX, cwW, stripeW: 18, stripeGap: 10,
+  };
+}
+
+// ── State ─────────────────────────────────────
+let state = 'menu';
+let score = 0, lives = 3;
+let signal = 'red';
+let soundCool = 0;
+let cars = [], particles = [];
+let carTimer = 0;
+let flashT = 0, flashClr = '#f00';
+let mouseRatio = 0.8; // 0=top(close) 1=bottom(far) — default far (safe)
+let keyClose = false;
+
+// Person
+const P = { x: 0, y: 0, w: 24, h: 34, phase: 0, hit: false, hitT: 0 };
+
+function resetPerson() {
+  const l = L();
+  P.x = l.cwX + l.cwW * 0.5;
+  P.y = l.botSW.y - P.h - 2;
+  P.hit = false; P.hitT = 0;
+}
+
+// ── Effective distance (from input mode) ──────
+function effDist() {
+  if (cfg.inputMode === 'mouse')    return mouseRatio * cfg.maxDist;
+  if (cfg.inputMode === 'keyboard') return keyClose ? 5 : 35;
+  return distance; // sensor
+}
+
+// ── Init ──────────────────────────────────────
+function init(full) {
+  if (full) { score = 0; lives = 3; }
+  cars = []; particles = [];
+  carTimer = 60;
+  signal = 'red'; soundCool = 0;
+  flashT = 0;
+  resetPerson();
+  updateHUD();
+}
+
+// ── Spawn car ─────────────────────────────────
+function spawnCar(laneY, laneH, dir) {
+  const W = canvas.width;
+  const spd = [2.5, 4, 6][cfg.speedLevel - 1] * (0.8 + Math.random() * 0.4);
+  const cw = 64 + Math.floor(Math.random() * 20);
+  const ch = Math.min(laneH * 0.55, 28);
+  const pal = ['#f97316','#ef4444','#3b82f6','#a855f7','#eab308','#06b6d4'];
+  cars.push({
+    x: dir > 0 ? -cw - 10 : W + 10,
+    y: laneY + (laneH - ch) / 2,
+    w: cw, h: ch,
+    vx: dir * spd,
+    color: pal[Math.floor(Math.random() * pal.length)],
+  });
+}
+
+// ── Burst ─────────────────────────────────────
+function burst(x, y, color, n) {
+  n = n || 12;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+    const spd = 2 + Math.random() * 4;
+    particles.push({ x, y, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd,
+      r: 2 + Math.random()*4, color, alpha: 1, life: 28 + Math.random()*18 });
+  }
+}
+
+// ── Update ────────────────────────────────────
+function update() {
+  if (state !== 'playing') return;
+  const l = L();
+  const d = effDist();
+
+  // Smooth sensor
+  distance = distance * 0.55 + rawDist * 0.45;
+
+  // Signal
+  const newSig = d >= cfg.threshold ? 'green' : 'red';
+  if (newSig !== signal) {
+    signal = newSig;
+    if (soundCool <= 0) {
+      if (signal === 'green') playGreen(); else playRed();
+      soundCool = 70;
+    }
+  }
+  if (soundCool > 0) soundCool--;
+
+  // Sensor UI color
+  const safe = signal === 'green';
+  document.getElementById('sensorFill').style.background = safe ? '#00ff88' : '#ff4444';
+
+  // Person walk
+  if (!P.hit) {
+    if (signal === 'green') {
+      P.y -= 1.6;
+      P.phase += 0.2;
+    }
+    // Reached destination
+    if (P.y + P.h <= l.topSW.y + l.topSW.h) {
+      score++;
+      updateHUD();
+      burst(P.x, P.y + P.h / 2, '#00ff88', 22);
+      playSuccess();
+      resetPerson();
+    }
+  } else {
+    P.hitT--;
+    if (P.hitT <= 0) { P.hit = false; resetPerson(); }
+  }
+
+  // Car spawn — only when red
+  if (signal === 'red') {
+    carTimer--;
+    if (carTimer <= 0) {
+      const useL2 = Math.random() > 0.5;
+      const lane = useL2 ? l.lane2 : l.lane1;
+      const dir = (useL2 ? -1 : 1) * (Math.random() > 0.3 ? 1 : -1);
+      spawnCar(lane.y, lane.h, dir);
+      carTimer = 70 + Math.floor(Math.random() * 60);
+    }
+  }
+
+  // Move cars & check collision
+  for (let i = cars.length - 1; i >= 0; i--) {
+    const c = cars[i];
+    c.x += c.vx;
+    if (c.x > canvas.width + 120 || c.x < -180) { cars.splice(i, 1); continue; }
+
+    if (!P.hit && P.y < l.botSW.y - 2) { // person in road
+      const px = P.x - P.w / 2, py = P.y;
+      if (c.x < px + P.w && c.x + c.w > px && c.y < py + P.h && c.y + c.h > py) {
+        P.hit = true; P.hitT = 80;
+        lives--;
+        updateHUD();
+        burst(P.x, py + P.h / 2, '#ff4444', 20);
+        playCrash();
+        flashT = 22; flashClr = '#ff0000';
+        cars.splice(i, 1);
+        if (lives <= 0) setTimeout(endGame, 700);
+        continue;
+      }
+    }
+  }
+
+  // Particles
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.09;
+    p.alpha -= 1 / p.life; p.life--;
+  });
+  particles = particles.filter(p => p.life > 0);
+
+  if (flashT > 0) flashT--;
+}
+
+// ── Draw ──────────────────────────────────────
+function draw() {
+  const l = L();
+  const W = l.W, H = l.H;
+
+  // Road
+  ctx.fillStyle = hcMode ? '#1a1a1a' : '#12121e';
+  ctx.fillRect(0, 0, W, H);
+
+  // Sidewalks
+  ctx.fillStyle = hcMode ? '#1a3a1a' : '#0d1f0d';
+  ctx.fillRect(0, l.topSW.y, W, l.topSW.h);
+  ctx.fillRect(0, l.botSW.y, W, l.botSW.h);
+
+  // Sidewalk edge
+  ctx.strokeStyle = hcMode ? '#4a7a4a' : '#1a3a1a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, l.topSW.y + l.topSW.h); ctx.lineTo(W, l.topSW.y + l.topSW.h);
+  ctx.moveTo(0, l.botSW.y);             ctx.lineTo(W, l.botSW.y);
+  ctx.stroke();
+
+  // Road center dashed line
+  ctx.setLineDash([22, 14]);
+  ctx.strokeStyle = hcMode ? '#555' : '#2a2a3e';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  const midY = l.lane1.y + l.lane1.h;
+  ctx.moveTo(0, midY); ctx.lineTo(W, midY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Crosswalk stripes
+  const nStripes = Math.floor(l.cwW / (l.stripeW + l.stripeGap));
+  ctx.fillStyle = hcMode ? '#ffffff' : 'rgba(240,240,240,0.88)';
+  for (let i = 0; i < nStripes; i++) {
+    const sx = l.cwX + i * (l.stripeW + l.stripeGap);
+    ctx.fillRect(sx, l.topSW.y + l.topSW.h, l.stripeW, l.roadH);
+  }
+
+  // --- Traffic light ---
+  const tlX = l.cwX - 44, tlY = l.topSW.y + l.topSW.h + 8;
+  const tlH = l.roadH * 0.55;
+  // Pole
+  ctx.fillStyle = hcMode ? '#666' : '#2a2a3e';
+  ctx.fillRect(tlX + 11, tlY, 5, tlH);
+  // Box
+  ctx.fillStyle = hcMode ? '#333' : '#111';
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+  ctx.beginPath(); ctx.roundRect(tlX, tlY, 27, 54, 6); ctx.fill();
+  // Red lamp
+  ctx.fillStyle = signal === 'red' ? '#ff2222' : (hcMode ? '#330000' : '#1a0000');
+  if (signal === 'red') { ctx.shadowColor = '#ff2222'; ctx.shadowBlur = 18; }
+  ctx.beginPath(); ctx.arc(tlX + 13, tlY + 14, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Green lamp
+  ctx.fillStyle = signal === 'green' ? '#00ee44' : (hcMode ? '#003300' : '#001500');
+  if (signal === 'green') { ctx.shadowColor = '#00ff44'; ctx.shadowBlur = 18; }
+  ctx.beginPath(); ctx.arc(tlX + 13, tlY + 38, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Signal label
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'center';
+  if (signal === 'green') {
+    ctx.fillStyle = '#00ff88';
+    ctx.fillText('건너세요!', tlX + 13, tlY + tlH + 16);
+  } else {
+    ctx.fillStyle = '#ff4444';
+    ctx.fillText('기다려요!', tlX + 13, tlY + tlH + 16);
+  }
+  ctx.textAlign = 'left';
+
+  // --- Cars ---
+  cars.forEach(c => {
+    ctx.save();
+    ctx.shadowColor = c.color; ctx.shadowBlur = 8;
+    // Body
+    ctx.fillStyle = c.color;
+    ctx.beginPath(); ctx.roundRect(c.x, c.y, c.w, c.h, 5); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Windows
+    ctx.fillStyle = 'rgba(180,230,255,0.5)';
+    const winW = c.w * 0.28, winH = c.h * 0.44;
+    ctx.fillRect(c.x + c.w * 0.18, c.y + c.h * 0.12, winW, winH);
+    ctx.fillRect(c.x + c.w * 0.54, c.y + c.h * 0.12, winW, winH);
+    // Headlights
+    ctx.fillStyle = '#fffaaa';
+    const hx = c.vx > 0 ? c.x + c.w - 5 : c.x + 1;
+    ctx.fillRect(hx, c.y + 3, 4, c.h * 0.22);
+    ctx.fillRect(hx, c.y + c.h - c.h * 0.22 - 3, 4, c.h * 0.22);
+    ctx.restore();
+  });
+
+  // --- Person ---
+  drawPerson(l);
+
+  // --- Particles ---
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.alpha);
+    ctx.shadowColor = p.color; ctx.shadowBlur = 5;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  });
+
+  // Destination indicator (top sidewalk)
+  if (state === 'playing') {
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = hcMode ? '#fff' : '#4ade80';
+    ctx.fillText('🏁 목적지', canvas.width * 0.5, l.topSW.y + l.topSW.h * 0.6);
+    ctx.textAlign = 'left';
+  }
+
+  // Flash
+  if (flashT > 0) {
+    ctx.globalAlpha = (flashT / 22) * 0.42;
+    ctx.fillStyle = flashClr;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  // Sensor distance mini-bar (top right corner)
+  if (state === 'playing') {
+    const d = effDist();
+    const bx = W - 76, by = 6, bw = 68, bh = 12;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 4); ctx.fill();
+    const pct = Math.min(d / cfg.maxDist, 1);
+    ctx.fillStyle = signal === 'green' ? '#00ff88' : '#ff4444';
+    ctx.beginPath(); ctx.roundRect(bx, by, bw * pct, bh, 4); ctx.fill();
+    ctx.font = '9px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText(d.toFixed(0) + 'cm', bx + bw / 2, by + bh - 2);
+    ctx.textAlign = 'left';
+  }
+}
+
+function drawPerson(l) {
+  if (state !== 'playing') return;
+  const blink = P.hit && Math.floor(P.hitT / 7) % 2 === 0;
+  if (blink) return;
+
+  const x = P.x, y = P.y;
+  const lp = Math.sin(P.phase);
+  const bodyClr = hcMode ? '#ffffff' : '#00f0cc';
+
+  ctx.save();
+  ctx.globalAlpha = P.hit ? 0.55 : 1;
+  ctx.strokeStyle = bodyClr; ctx.fillStyle = bodyClr;
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+
+  if (signal === 'green' && !P.hit) {
+    ctx.shadowColor = bodyClr; ctx.shadowBlur = 10;
+  }
+
+  // Head
+  ctx.beginPath();
+  ctx.arc(x, y + 7, 6, 0, Math.PI * 2);
+  ctx.fill();
+  // Body
+  ctx.beginPath(); ctx.moveTo(x, y + 13); ctx.lineTo(x, y + 26); ctx.stroke();
+  // Cane (white cane of blind person)
+  ctx.strokeStyle = hcMode ? '#ddd' : '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x + 3, y + 20); ctx.lineTo(x + 12, y + 34); ctx.stroke();
+  ctx.strokeStyle = bodyClr; ctx.lineWidth = 2.5;
+  // Legs (walk animation)
+  ctx.beginPath(); ctx.moveTo(x, y + 26); ctx.lineTo(x - 7 + lp * 4, y + 34); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, y + 26); ctx.lineTo(x + 7 - lp * 4, y + 34); ctx.stroke();
+  // Arms
+  ctx.beginPath(); ctx.moveTo(x, y + 17); ctx.lineTo(x - 8, y + 22 + lp * 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, y + 17); ctx.lineTo(x + 6, y + 22 - lp * 2); ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+// ── Main loop ─────────────────────────────────
+function loop() { requestAnimationFrame(loop); update(); draw(); }
+loop();
+
+// ── HUD ───────────────────────────────────────
+function updateHUD() {
+  document.getElementById('scoreDisp').textContent = score;
+  document.getElementById('hiDisp').textContent = Math.max(score, getHi()).toLocaleString();
+  document.getElementById('livesDisp').textContent = '❤'.repeat(Math.max(0, lives));
+}
+
+// ── Game flow ─────────────────────────────────
+function startGame() {
+  init(true);
+  state = 'playing';
+  document.getElementById('startPanel').classList.add('hidden');
+  document.getElementById('overPanel').classList.add('hidden');
+}
+function endGame() {
+  state = 'gameover';
+  setHi(score);
+  document.getElementById('finalDisp').textContent = score + '번 건넘!';
+  document.getElementById('hiLine').textContent = '최고: ' + getHi() + '번';
+  document.getElementById('overPanel').classList.remove('hidden');
+  document.getElementById('hiDisp').textContent = getHi().toLocaleString();
+}
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+
+// ── Teacher mode inputs ───────────────────────
+canvas.addEventListener('mousemove', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  const r = canvas.getBoundingClientRect();
+  mouseRatio = (e.clientY - r.top) / r.height;
+});
+canvas.addEventListener('touchmove', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  mouseRatio = (e.touches[0].clientY - r.top) / r.height;
+}, { passive: false });
+
+window.addEventListener('keydown', e => {
+  if (cfg.inputMode !== 'keyboard') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  if (e.key === ' ') { keyClose = true; e.preventDefault(); }
+});
+window.addEventListener('keyup', e => {
+  if (e.key === ' ') keyClose = false;
+});
+
+// ── Serial ────────────────────────────────────
+serial.onData(v => {
+  rawDist = v;
+  const pct = Math.min((v / cfg.maxDist) * 100, 100);
+  document.getElementById('sensorFill').style.width = pct + '%';
+  document.getElementById('sensorVal').textContent = v.toFixed(1) + ' cm';
+  document.getElementById('tBigV').textContent = v.toFixed(1) + ' cm';
+  document.getElementById('tBar').style.width = pct + '%';
+  document.getElementById('tBar').style.background = v < cfg.threshold ? '#ff4444' : '#00ff88';
+  const ind = document.getElementById('reactInd');
+  const danger = v < cfg.threshold;
+  ind.textContent = danger ? '🔴 위험 — 빨간 신호!' : '🟢 안전 — 파란 신호!';
+  ind.className = 'react-ind show' + (danger ? ' danger' : '');
+  clearTimeout(ind._t);
+  ind._t = setTimeout(() => ind.classList.remove('show'), 1000);
+});
+serial.onConnect(() => {
+  document.getElementById('connectBtn').textContent = '🔴 연결됨';
+  document.getElementById('connectBtn').classList.add('connected');
+});
+serial.onDisconnect(() => {
+  document.getElementById('connectBtn').textContent = '🔌 연결';
+  document.getElementById('connectBtn').classList.remove('connected');
+  rawDist = 30; distance = 30;
+});
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) await serial.disconnect();
+  else try { await serial.connect(); } catch(e) { alert(e.message); }
+});
+
+// ── Settings ──────────────────────────────────
+const MODE_LABELS = { sensor: '센서', mouse: '마우스', keyboard: '키보드' };
+function syncModeUI() {
+  document.getElementById('inputModeSelect').value = cfg.inputMode;
+  document.getElementById('inputModeLabel').textContent = MODE_LABELS[cfg.inputMode] || '센서';
+}
+document.getElementById('settBtn').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.toggle('open'));
+document.getElementById('closeSett').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.remove('open'));
+document.getElementById('threshSlider').addEventListener('input', e => {
+  cfg.threshold = +e.target.value;
+  document.getElementById('threshLabel').textContent = cfg.threshold;
+});
+document.getElementById('speedSlider').addEventListener('input', e => {
+  cfg.speedLevel = +e.target.value;
+  document.getElementById('speedLabel').textContent = ['느림','보통','빠름'][cfg.speedLevel - 1];
+});
+document.getElementById('inputModeSelect').addEventListener('change', e => {
+  cfg.inputMode = MODE_LABELS[e.target.value] ? e.target.value : 'sensor';
+  syncModeUI();
+});
+
+document.getElementById('hiDisp').textContent = getHi().toLocaleString();
+syncModeUI();
+</script>
+</body>
+</html>

@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>구멍을 통과해라 — EZMaker</title>
+<style>
+  :root{--bg:#050f08;--panel:#0a1509;--border:#1a3018;--accent:#4ade80;
+    --success:#00ff88;--danger:#ff4444;--muted:#64748b;--text:#e2e8f0;}
+  body.hc{--bg:#000;--panel:#111;--border:#fff;--text:#fff;--muted:#ddd;}
+  body.hc .overlay{background:rgba(0,0,0,.97);}
+  body.hc #settPanel{background:#111;border-color:#fff;}
+  body.hc .testbox{background:#1a1a1a;border-color:#fff;}
+  body.hc .srow select{background:#1a1a1a;border-color:#fff;color:#fff;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+    height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+
+  #topbar{width:100%;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);gap:8px;flex-shrink:0;}
+  #topbar a{color:var(--muted);text-decoration:none;font-size:.8rem;}
+  #topbar a:hover{color:var(--accent);}
+  .stat{text-align:center;}
+  .stat .label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat .value{font-size:1.05rem;font-weight:700;color:var(--accent);font-family:monospace;}
+
+  #gameWrap{position:relative;flex:1;width:100%;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+
+  #sensorBar{width:100%;background:var(--panel);border-top:1px solid var(--border);
+    padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  #sensorBar .label{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  #sensorMeter{flex:1;height:8px;background:#1a1a3a;border-radius:4px;overflow:hidden;}
+  #sensorFill{height:100%;background:var(--accent);border-radius:4px;transition:width .05s,background .15s;width:0%;}
+  #sensorVal{font-size:.75rem;font-family:monospace;color:var(--accent);min-width:52px;text-align:right;}
+
+  button.ctrl{background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;
+    padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;}
+  button.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+  button.ctrl.connected{border-color:var(--success);color:var(--success);}
+
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.88);z-index:10;flex-direction:column;gap:14px;padding:28px;text-align:center;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-size:1.5rem;font-weight:900;color:var(--accent);}
+  .overlay .sub{color:var(--muted);font-size:.85rem;line-height:2;max-width:380px;}
+  .btn{background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 28px;
+    font-size:.95rem;font-weight:700;cursor:pointer;min-width:140px;}
+
+  #settPanel{position:absolute;top:0;right:0;bottom:0;width:min(300px,100%);background:var(--panel);
+    border-left:1px solid var(--border);z-index:20;padding:20px;overflow-y:auto;
+    transform:translateX(100%);transition:transform .3s;}
+  #settPanel.open{transform:translateX(0);}
+  #settPanel h3{color:var(--accent);margin-bottom:18px;}
+  .srow{margin-bottom:16px;}
+  .srow label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;}
+  .srow input[type=range]{width:100%;accent-color:var(--accent);}
+  .srow select{width:100%;background:#0a0a18;border:1px solid var(--border);color:var(--text);
+    border-radius:8px;padding:8px 10px;}
+  .testbox{background:#0a1509;border:1px solid var(--border);border-radius:8px;padding:14px;
+    margin-bottom:16px;text-align:center;}
+  .testbox .bigv{font-size:2rem;font-weight:900;font-family:monospace;color:var(--accent);}
+  .testbox .hint{font-size:.72rem;color:var(--muted);margin-top:4px;}
+  .testbar{height:10px;background:#1a1a3a;border-radius:5px;overflow:hidden;margin-top:8px;}
+  .testbar div{height:100%;background:var(--accent);border-radius:5px;transition:width .05s,background .15s;width:0%;}
+  .react-ind{display:inline-block;margin-top:8px;padding:3px 12px;border-radius:12px;font-size:.75rem;
+    font-weight:700;opacity:0;transition:opacity .15s;}
+  .react-ind.tall{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.4);color:#4ade80;}
+  .react-ind.wide{background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.4);color:#60a5fa;}
+  .react-ind.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div style="display:flex;gap:14px">
+    <div class="stat"><div class="label">통과</div><div class="value" id="scoreDisp">0</div></div>
+    <div class="stat"><div class="label">최고</div><div class="value" id="hiDisp">0</div></div>
+    <div class="stat"><div class="label">목숨</div><div class="value" id="livesDisp">❤❤❤</div></div>
+  </div>
+  <div style="display:flex;gap:6px">
+    <button class="ctrl" id="hcToggle" onclick="toggleHC()" title="고대비 모드">☀️</button>
+    <button class="ctrl" id="settBtn">⚙️</button>
+  </div>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+
+  <div class="overlay" id="startPanel">
+    <h2>🐑 구멍을 통과해라!</h2>
+    <div class="sub">
+      초음파 센서로 양의 모양을 바꾸세요!<br><br>
+      📡 <strong>손을 가까이</strong> → ↕ 세로로 길쭉<br>
+      → 세로로 긴 구멍 통과!<br><br>
+      📡 <strong>손을 멀리</strong> → ↔ 가로로 납작<br>
+      → 가로로 넓은 구멍 통과!<br><br>
+      구멍 모양이 다르면 막혀요.<br>빨리 모양을 바꿔서 통과하세요!
+    </div>
+    <button class="btn" id="startBtn">시작!</button>
+  </div>
+
+  <div class="overlay hidden" id="overPanel">
+    <h2>💥 게임 오버</h2>
+    <div style="font-size:1.6rem;color:var(--accent);font-family:monospace;margin:4px 0" id="finalDisp"></div>
+    <div style="color:var(--muted);font-size:.82rem" id="hiLine"></div>
+    <button class="btn" id="restartBtn" style="margin-top:6px">다시 시작</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem">← 목록으로</a>
+  </div>
+</div>
+
+<div id="sensorBar">
+  <span class="label">거리</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">— cm</span>
+  <button class="ctrl" id="connectBtn">🔌 연결</button>
+</div>
+
+<div id="settPanel">
+  <h3>⚙️ 센서 · 입력 설정</h3>
+  <div class="testbox">
+    <div class="bigv" id="tBigV">— cm</div>
+    <div class="hint">초음파 센서 거리 (0~400cm)</div>
+    <div class="testbar"><div id="tBar"></div></div>
+    <div class="react-ind tall" id="reactInd">세로 모드</div>
+  </div>
+  <div class="srow">
+    <label>기준 거리: <strong id="threshLabel">20</strong> cm</label>
+    <input type="range" id="threshSlider" min="5" max="60" value="20">
+    <div style="font-size:.72rem;color:var(--muted);margin-top:4px">
+      이 거리보다 가까우면 ↕ 세로, 멀면 ↔ 가로 모양
+    </div>
+  </div>
+  <div class="srow">
+    <label>구멍 속도: <strong id="speedLabel">보통</strong></label>
+    <input type="range" id="speedSlider" min="1" max="3" value="2" step="1">
+  </div>
+  <div class="srow">
+    <label>입력 모드: <strong id="inputModeLabel">센서</strong></label>
+    <select id="inputModeSelect">
+      <option value="sensor">센서만 사용</option>
+      <option value="mouse">마우스 (위=세로, 아래=가로)</option>
+      <option value="keyboard">키보드 (스페이스=세로)</option>
+    </select>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:6px">기본 조작은 센서입니다.</div>
+  </div>
+  <button class="btn" id="closeSett" style="width:100%">닫기</button>
+</div>
+
+<script src="js/serial.js"></script>
+<script src="js/keyboard-lock.js"></script>
+<script>
+// ── Canvas ────────────────────────────────────
+const canvas = document.getElementById('gc');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('gameWrap');
+function resize() { canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight; }
+resize(); window.addEventListener('resize', resize);
+
+// ── Serial ────────────────────────────────────
+const serial = new SerialManager();
+let rawDist = 30, distance = 30;
+const cfg = { threshold: 20, maxDist: 40, speedLevel: 2, inputMode: 'sensor' };
+
+// ── HC mode ───────────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  document.getElementById('hcToggle').textContent = hcMode ? '🌙' : '☀️';
+}
+function toggleHC() {
+  hcMode = !hcMode;
+  localStorage.setItem('hc_mode', hcMode ? '1' : '0');
+  applyHC();
+}
+applyHC();
+
+// ── Hi-score ──────────────────────────────────
+const LB_KEY = 'sheephole_hi';
+function getHi() { return +localStorage.getItem(LB_KEY) || 0; }
+function setHi(s) { if (s > getHi()) localStorage.setItem(LB_KEY, s); }
+
+// ── Audio ─────────────────────────────────────
+let ac = null;
+function getAC() {
+  if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+  return ac;
+}
+function tone(freq, dur, type, vol, delay) {
+  try {
+    const a = getAC(), osc = a.createOscillator(), g = a.createGain();
+    osc.connect(g); g.connect(a.destination);
+    osc.frequency.value = freq; osc.type = type || 'sine';
+    const t0 = a.currentTime + (delay || 0);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol || 0.15, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.start(t0); osc.stop(t0 + dur + 0.01);
+  } catch(e) {}
+}
+function playPass() {
+  tone(660, .08, 'sine', .14);
+  tone(880, .12, 'sine', .14, .09);
+}
+function playBump() {
+  tone(260, .12, 'square', .12);
+  tone(200, .18, 'square', .10, .10);
+}
+function playCrash() {
+  tone(200, .08, 'sawtooth', .20);
+  tone(150, .30, 'sawtooth', .15, .08);
+}
+function playSuccess() {
+  tone(523, .08, 'sine', .13);
+  tone(659, .08, 'sine', .13, .10);
+  tone(784, .10, 'sine', .13, .20);
+  tone(1047, .22, 'sine', .13, .32);
+}
+
+// ── Helpers ───────────────────────────────────
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+// ── State ─────────────────────────────────────
+let state = 'menu';
+let score = 0, lives = 3;
+let morphFactor = 0;    // 0=wide/flat, 1=tall/slim — visual interpolation
+let charMode = 'wide';  // current logical mode: 'tall' | 'wide'
+let walls = [];
+let wallTimer = 0;
+let particles = [];
+let flashT = 0, flashClr = '#f00';
+let blockedWall = null; // wall currently blocking the sheep
+let mouseRatio = 0.8;   // 0=top(close→tall), 1=bottom(far→wide)
+let keyClose = false;
+let floatTexts = [];    // floating text animations
+
+const WALL_THICK = 58;
+const CHAR_X_RATIO = 0.2;
+
+function baseSpeed() { return [1.8, 3.0, 4.5][cfg.speedLevel - 1]; }
+function wallSpeed() { return baseSpeed() + Math.min(score * 0.12, 3); }
+function wallInterval() { return Math.max(70, 170 - score * 4); }
+
+// ── Effective distance ─────────────────────────
+function effDist() {
+  if (cfg.inputMode === 'mouse')    return mouseRatio * cfg.maxDist;
+  if (cfg.inputMode === 'keyboard') return keyClose ? 5 : 35;
+  return distance;
+}
+
+// ── Init ──────────────────────────────────────
+function init(full) {
+  if (full) { score = 0; lives = 3; }
+  walls = []; particles = []; floatTexts = [];
+  wallTimer = 80;
+  morphFactor = 0; charMode = 'wide';
+  blockedWall = null;
+  flashT = 0;
+  updateHUD();
+}
+
+// ── Spawn wall ────────────────────────────────
+function spawnWall() {
+  walls.push({
+    x: canvas.width + 10,
+    w: WALL_THICK,
+    type: Math.random() > 0.5 ? 'tall' : 'wide',
+    checked: false,
+    blockTimer: 0,
+    blocked: false,
+    passed: false,
+    shake: 0,
+  });
+}
+
+// ── Float text ────────────────────────────────
+function floatText(x, y, text, color) {
+  floatTexts.push({ x, y, vy: -1.5, text, color, alpha: 1, life: 55 });
+}
+
+// ── Burst ─────────────────────────────────────
+function burst(x, y, color, n) {
+  for (let i = 0; i < (n || 12); i++) {
+    const a = (i / (n || 12)) * Math.PI * 2 + Math.random() * 0.5;
+    const spd = 2 + Math.random() * 4;
+    particles.push({ x, y, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd,
+      r: 2 + Math.random() * 4, color, alpha: 1, life: 26 + Math.random() * 16 });
+  }
+}
+
+// ── Update ────────────────────────────────────
+function update() {
+  if (state !== 'playing') return;
+
+  const W = canvas.width, H = canvas.height;
+  const charX = W * CHAR_X_RATIO;
+
+  // Smooth distance
+  distance = distance * 0.55 + rawDist * 0.45;
+  const d = effDist();
+
+  // Character mode & morph
+  charMode = d < cfg.threshold ? 'tall' : 'wide';
+  morphFactor += ((charMode === 'tall' ? 1 : 0) - morphFactor) * 0.14;
+
+  // Sensor bar color: green = tall, blue = wide
+  document.getElementById('sensorFill').style.background =
+    charMode === 'tall' ? '#4ade80' : '#60a5fa';
+
+  // ── Blocked wall handling ─────────────────
+  if (blockedWall) {
+    blockedWall.shake = Math.sin(blockedWall.blockTimer * 0.35) * 3;
+    blockedWall.blockTimer++;
+
+    if (charMode === blockedWall.type) {
+      // Player changed shape → PASS!
+      score++;
+      updateHUD();
+      burst(charX, H * 0.45, '#4ade80', 20);
+      floatText(charX, H * 0.38, '통과!', '#4ade80');
+      playPass();
+      blockedWall.blocked = false;
+      blockedWall.passed = true;
+      blockedWall = null;
+    } else if (blockedWall.blockTimer > 160) {
+      // Timeout → lose life
+      lives--;
+      updateHUD();
+      burst(charX, H * 0.45, '#ff4444', 16);
+      floatText(charX, H * 0.38, '시간 초과!', '#ff4444');
+      playCrash();
+      flashT = 22; flashClr = '#ff0000';
+      blockedWall.passed = true;
+      blockedWall = null;
+      if (lives <= 0) { setTimeout(endGame, 700); }
+    }
+    updateParticles();
+    if (flashT > 0) flashT--;
+    return; // walls don't move while blocked
+  }
+
+  // ── Move walls ────────────────────────────
+  const spd = wallSpeed();
+  for (let i = walls.length - 1; i >= 0; i--) {
+    const wall = walls[i];
+    wall.x -= spd;
+    if (wall.shake) wall.shake *= 0.85;
+
+    // Collision check
+    if (!wall.checked && wall.x + wall.w >= charX - 8 && wall.x <= charX + 14) {
+      wall.checked = true;
+      if (charMode === wall.type) {
+        // PASS!
+        score++;
+        updateHUD();
+        burst(charX, H * 0.45, '#4ade80', 16);
+        floatText(charX + 20, H * 0.35, '통과!', '#4ade80');
+        playPass();
+      } else {
+        // BLOCKED
+        wall.blocked = true;
+        wall.blockTimer = 0;
+        blockedWall = wall;
+        playBump();
+        floatText(charX, H * 0.35,
+          wall.type === 'tall' ? '↕ 세로로 바꿔요!' : '↔ 가로로 바꿔요!', '#facc15');
+      }
+    }
+
+    if (wall.x + wall.w < 0) walls.splice(i, 1);
+  }
+
+  // Spawn walls
+  wallTimer--;
+  if (wallTimer <= 0) {
+    spawnWall();
+    wallTimer = wallInterval();
+  }
+
+  updateParticles();
+  if (flashT > 0) flashT--;
+}
+
+function updateParticles() {
+  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.09; p.alpha -= 1/p.life; p.life--; });
+  particles = particles.filter(p => p.life > 0);
+  floatTexts.forEach(t => { t.y += t.vy; t.alpha -= 1/t.life; t.life--; });
+  floatTexts = floatTexts.filter(t => t.life > 0);
+}
+
+// ── Draw ──────────────────────────────────────
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  const charX = W * CHAR_X_RATIO;
+  const charY = H * 0.46;
+
+  // Background
+  ctx.fillStyle = hcMode ? '#050505' : '#050f08';
+  ctx.fillRect(0, 0, W, H);
+
+  // Ground / grass
+  ctx.fillStyle = hcMode ? '#1a3a1a' : '#0a1e0b';
+  ctx.fillRect(0, H * 0.84, W, H * 0.16);
+  ctx.strokeStyle = hcMode ? '#3a6a3a' : '#163a18';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, H * 0.84); ctx.lineTo(W, H * 0.84); ctx.stroke();
+
+  // Walls
+  walls.forEach(wall => drawWall(wall, H));
+
+  // Sheep character
+  if (state === 'playing') drawSheep(charX, charY, morphFactor, H);
+
+  // Particles
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.alpha);
+    ctx.shadowColor = p.color; ctx.shadowBlur = 5;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  });
+
+  // Float texts
+  floatTexts.forEach(t => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, t.alpha);
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillStyle = t.color;
+    ctx.textAlign = 'center';
+    ctx.shadowColor = t.color; ctx.shadowBlur = 8;
+    ctx.fillText(t.text, t.x, t.y);
+    ctx.restore();
+  });
+
+  // Blocked countdown bar
+  if (blockedWall && state === 'playing') {
+    const remain = Math.max(0, 160 - blockedWall.blockTimer);
+    const pct = remain / 160;
+    const bx = W * 0.25, bw = W * 0.5;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath(); ctx.roundRect(bx, 10, bw, 14, 5); ctx.fill();
+    ctx.fillStyle = pct > 0.55 ? '#4ade80' : pct > 0.28 ? '#facc15' : '#ff4444';
+    ctx.beginPath(); ctx.roundRect(bx, 10, bw * pct, 14, 5); ctx.fill();
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+    const hint = blockedWall.type === 'tall' ? '↕ 손을 가까이!' : '↔ 손을 멀리!';
+    ctx.fillText(hint, W / 2, 40);
+    ctx.textAlign = 'left';
+  }
+
+  // Mode indicator under sheep
+  if (state === 'playing') {
+    const modeColor = charMode === 'tall' ? '#4ade80' : '#60a5fa';
+    const modeText  = charMode === 'tall' ? '↕ 세로 모드' : '↔ 가로 모드';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = modeColor;
+    ctx.textAlign = 'center';
+    ctx.shadowColor = modeColor; ctx.shadowBlur = 6;
+    ctx.fillText(modeText, charX, H * 0.84 + 18);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'left';
+  }
+
+  // Flash overlay
+  if (flashT > 0) {
+    ctx.globalAlpha = (flashT / 22) * 0.4;
+    ctx.fillStyle = flashClr;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ── Draw wall ─────────────────────────────────
+function drawWall(wall, H) {
+  const x = wall.x + (wall.shake || 0);
+  const w = wall.w;
+
+  const isTall = wall.type === 'tall';
+  const holeH  = H * (isTall ? 0.60 : 0.26);
+  const holeY  = (H - holeH) / 2;
+
+  const isBlocked = wall.blocked && !wall.passed;
+  const wallClr = isBlocked
+    ? (hcMode ? '#6a1a1a' : '#3a0e0e')
+    : (hcMode ? '#3a5a3a' : '#162a18');
+  const glowClr = isTall ? '#4ade80' : '#60a5fa';
+  const glowIntensity = isBlocked ? 22 : 8;
+
+  // Wall pieces (top & bottom, leaving hole gap)
+  ctx.fillStyle = wallClr;
+  // Top piece
+  if (holeY > 0) {
+    ctx.fillRect(x, 0, w, holeY);
+    // Brick texture lines
+    ctx.strokeStyle = hcMode ? '#4a7a4a' : '#1e3a20';
+    ctx.lineWidth = 1;
+    for (let gy = 14; gy < holeY; gy += 14) {
+      ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x + w, gy); ctx.stroke();
+    }
+  }
+  // Bottom piece
+  const botY = holeY + holeH;
+  if (botY < H) {
+    ctx.fillRect(x, botY, w, H - botY);
+    ctx.strokeStyle = hcMode ? '#4a7a4a' : '#1e3a20';
+    ctx.lineWidth = 1;
+    for (let gy = botY + 14; gy < H; gy += 14) {
+      ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x + w, gy); ctx.stroke();
+    }
+  }
+
+  // Hole glow outline
+  ctx.save();
+  ctx.shadowColor = glowClr;
+  ctx.shadowBlur = glowIntensity;
+  ctx.strokeStyle = glowClr;
+  ctx.lineWidth = isBlocked ? 3 : 2;
+  ctx.beginPath();
+  ctx.rect(x, holeY, w, holeH);
+  ctx.stroke();
+  ctx.restore();
+
+  // Hole type label on wall
+  ctx.font = 'bold 14px monospace';
+  ctx.fillStyle = glowClr;
+  ctx.textAlign = 'center';
+  ctx.shadowColor = glowClr; ctx.shadowBlur = 6;
+  if (holeY > 22) ctx.fillText(isTall ? '↕' : '↔', x + w / 2, holeY - 6);
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+
+  // Hole fill (slightly lighter than background)
+  ctx.fillStyle = hcMode ? 'rgba(255,255,255,0.03)' : 'rgba(74,222,128,0.04)';
+  ctx.fillRect(x, holeY, w, holeH);
+}
+
+// ── Draw sheep ────────────────────────────────
+function drawSheep(cx, cy, morph, H) {
+  // morph: 0=wide/flat, 1=tall/slim
+  const bodyW = lerp(H * 0.22, H * 0.10, morph);
+  const bodyH = lerp(H * 0.16, H * 0.50, morph);
+
+  const fluffClr  = hcMode ? '#dddddd' : '#e0e4f0';
+  const fluff2Clr = hcMode ? '#cccccc' : '#d0d4e8';
+  const glowClr   = charMode === 'tall' ? '#4ade80' : '#60a5fa';
+
+  ctx.save();
+  ctx.shadowColor = glowClr;
+  ctx.shadowBlur  = blockedWall ? 24 : 14;
+
+  // Main body ellipse
+  ctx.fillStyle = fluffClr;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, bodyW / 2, bodyH / 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Fluffy bumps around body
+  ctx.shadowBlur = 5;
+  ctx.fillStyle = fluff2Clr;
+  const bumpCount = morph > 0.55 ? 5 : 8;
+  const bumpR     = lerp(H * 0.048, H * 0.032, morph);
+  for (let i = 0; i < bumpCount; i++) {
+    const a = (i / bumpCount) * Math.PI * 2 + 0.3;
+    const bx = cx + Math.cos(a) * (bodyW / 2 * 0.78);
+    const by = cy + Math.sin(a) * (bodyH / 2 * 0.78);
+    ctx.beginPath(); ctx.arc(bx, by, bumpR, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Head
+  const headR  = lerp(H * 0.04, H * 0.033, morph);
+  const headOY = -bodyH / 2 - headR * 0.6;
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#f0e0cc';
+  ctx.beginPath(); ctx.arc(cx, cy + headOY, headR, 0, Math.PI * 2); ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.arc(cx - headR * 0.34, cy + headOY - headR * 0.15, headR * 0.22, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + headR * 0.34, cy + headOY - headR * 0.15, headR * 0.22, 0, Math.PI * 2); ctx.fill();
+
+  // Mouth (worried if blocked, happy otherwise)
+  ctx.strokeStyle = '#666';
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  if (blockedWall) {
+    ctx.arc(cx, cy + headOY + headR * 0.3, headR * 0.3, Math.PI + 0.3, -0.3, true);
+  } else {
+    ctx.arc(cx, cy + headOY + headR * 0.1, headR * 0.3, 0.3, Math.PI - 0.3);
+  }
+  ctx.stroke();
+
+  // Ears
+  ctx.fillStyle = '#f0e0cc';
+  ctx.beginPath();
+  ctx.ellipse(cx - headR * 0.62, cy + headOY - headR * 0.6, headR * 0.18, headR * 0.32, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx + headR * 0.62, cy + headOY - headR * 0.6, headR * 0.18, headR * 0.32, 0.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs
+  const legH = lerp(H * 0.055, H * 0.035, morph);
+  const legW = lerp(H * 0.025, H * 0.018, morph);
+  const legY = cy + bodyH / 2 - 2;
+  const legSpX = bodyW * 0.28;
+  ctx.fillStyle = '#c8a898';
+  ctx.beginPath(); ctx.roundRect(cx - legSpX - legW/2, legY, legW, legH, 3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(cx + legSpX - legW/2, legY, legW, legH, 3); ctx.fill();
+
+  ctx.restore();
+}
+
+// ── Main loop ─────────────────────────────────
+function loop() { requestAnimationFrame(loop); update(); draw(); }
+loop();
+
+// ── HUD ───────────────────────────────────────
+function updateHUD() {
+  document.getElementById('scoreDisp').textContent  = score;
+  document.getElementById('hiDisp').textContent     = Math.max(score, getHi()).toLocaleString();
+  document.getElementById('livesDisp').textContent  = '❤'.repeat(Math.max(0, lives));
+}
+
+// ── Game flow ─────────────────────────────────
+function startGame() {
+  init(true);
+  state = 'playing';
+  document.getElementById('startPanel').classList.add('hidden');
+  document.getElementById('overPanel').classList.add('hidden');
+}
+function endGame() {
+  state = 'gameover';
+  setHi(score);
+  document.getElementById('finalDisp').textContent = score + '번 통과!';
+  document.getElementById('hiLine').textContent = '최고: ' + getHi() + '번';
+  document.getElementById('overPanel').classList.remove('hidden');
+  document.getElementById('hiDisp').textContent = getHi().toLocaleString();
+}
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+
+// ── Teacher inputs ────────────────────────────
+canvas.addEventListener('mousemove', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  const r = canvas.getBoundingClientRect();
+  mouseRatio = (e.clientY - r.top) / r.height;
+});
+canvas.addEventListener('touchmove', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  mouseRatio = (e.touches[0].clientY - r.top) / r.height;
+}, { passive: false });
+
+window.addEventListener('keydown', e => {
+  if (cfg.inputMode !== 'keyboard') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  if (e.key === ' ') { keyClose = true; e.preventDefault(); }
+});
+window.addEventListener('keyup', e => {
+  if (e.key === ' ') keyClose = false;
+});
+
+// ── Serial ────────────────────────────────────
+serial.onData(v => {
+  rawDist = v;
+  const pct = Math.min((v / cfg.maxDist) * 100, 100);
+  document.getElementById('sensorFill').style.width = pct + '%';
+  document.getElementById('sensorVal').textContent  = v.toFixed(1) + ' cm';
+  document.getElementById('tBigV').textContent      = v.toFixed(1) + ' cm';
+  document.getElementById('tBar').style.width       = pct + '%';
+  document.getElementById('tBar').style.background  = v < cfg.threshold ? '#4ade80' : '#60a5fa';
+  const ind = document.getElementById('reactInd');
+  const isTall = v < cfg.threshold;
+  ind.textContent = isTall ? '↕ 세로 모드' : '↔ 가로 모드';
+  ind.className   = 'react-ind show ' + (isTall ? 'tall' : 'wide');
+  clearTimeout(ind._t);
+  ind._t = setTimeout(() => ind.classList.remove('show'), 900);
+});
+serial.onConnect(() => {
+  document.getElementById('connectBtn').textContent = '🔴 연결됨';
+  document.getElementById('connectBtn').classList.add('connected');
+});
+serial.onDisconnect(() => {
+  document.getElementById('connectBtn').textContent = '🔌 연결';
+  document.getElementById('connectBtn').classList.remove('connected');
+  rawDist = 30; distance = 30;
+});
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) await serial.disconnect();
+  else try { await serial.connect(); } catch(e) { alert(e.message); }
+});
+
+// ── Settings ──────────────────────────────────
+const MODE_LABELS = { sensor: '센서', mouse: '마우스', keyboard: '키보드' };
+function syncModeUI() {
+  document.getElementById('inputModeSelect').value = cfg.inputMode;
+  document.getElementById('inputModeLabel').textContent = MODE_LABELS[cfg.inputMode] || '센서';
+}
+document.getElementById('settBtn').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.toggle('open'));
+document.getElementById('closeSett').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.remove('open'));
+document.getElementById('threshSlider').addEventListener('input', e => {
+  cfg.threshold = +e.target.value;
+  document.getElementById('threshLabel').textContent = cfg.threshold;
+});
+document.getElementById('speedSlider').addEventListener('input', e => {
+  cfg.speedLevel = +e.target.value;
+  document.getElementById('speedLabel').textContent = ['느림','보통','빠름'][cfg.speedLevel - 1];
+});
+document.getElementById('inputModeSelect').addEventListener('change', e => {
+  cfg.inputMode = MODE_LABELS[e.target.value] ? e.target.value : 'sensor';
+  syncModeUI();
+});
+
+document.getElementById('hiDisp').textContent = getHi().toLocaleString();
+syncModeUI();
+</script>
+</body>
+</html>

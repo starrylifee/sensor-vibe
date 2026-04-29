@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>모래속 보물을 찾아! — EZMaker</title>
+<style>
+  :root{--bg:#06090f;--panel:#0c1018;--border:#1a2440;--accent:#fb923c;
+    --success:#fbbf24;--danger:#ff4444;--muted:#64748b;--text:#e2e8f0;}
+  body.hc{--bg:#000;--panel:#111;--border:#fff;--text:#fff;--muted:#ddd;}
+  body.hc .overlay{background:rgba(0,0,0,.97);}
+  body.hc #settPanel{background:#111;border-color:#fff;}
+  body.hc .testbox{background:#1a1a1a;border-color:#fff;}
+  body.hc .srow select{background:#1a1a1a;border-color:#fff;color:#fff;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+    height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+
+  #topbar{width:100%;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);gap:8px;flex-shrink:0;}
+  #topbar a{color:var(--muted);text-decoration:none;font-size:.8rem;}
+  #topbar a:hover{color:var(--accent);}
+  .stat{text-align:center;}
+  .stat .label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat .value{font-size:1.05rem;font-weight:700;color:var(--accent);font-family:monospace;}
+
+  #gameWrap{position:relative;flex:1;width:100%;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+
+  #sensorBar{width:100%;background:var(--panel);border-top:1px solid var(--border);
+    padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  #sensorBar .label{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  #sensorMeter{flex:1;height:8px;background:#1a1a3a;border-radius:4px;overflow:hidden;}
+  #sensorFill{height:100%;background:var(--accent);border-radius:4px;transition:width .05s,background .15s;width:0%;}
+  #sensorVal{font-size:.75rem;font-family:monospace;color:var(--accent);min-width:52px;text-align:right;}
+
+  button.ctrl{background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;
+    padding:4px 8px;font-size:.72rem;cursor:pointer;white-space:nowrap;}
+  button.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+  button.ctrl.connected{border-color:var(--success);color:var(--success);}
+
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.88);z-index:10;flex-direction:column;gap:14px;padding:28px;text-align:center;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-size:1.5rem;font-weight:900;color:var(--accent);}
+  .overlay .sub{color:var(--muted);font-size:.85rem;line-height:2;max-width:380px;}
+  .btn{background:var(--accent);color:#000;border:none;border-radius:8px;padding:10px 28px;
+    font-size:.95rem;font-weight:700;cursor:pointer;min-width:140px;}
+
+  #settPanel{position:absolute;top:0;right:0;bottom:0;width:min(300px,100%);background:var(--panel);
+    border-left:1px solid var(--border);z-index:20;padding:20px;overflow-y:auto;
+    transform:translateX(100%);transition:transform .3s;}
+  #settPanel.open{transform:translateX(0);}
+  #settPanel h3{color:var(--accent);margin-bottom:18px;}
+  .srow{margin-bottom:16px;}
+  .srow label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;}
+  .srow input[type=range]{width:100%;accent-color:var(--accent);}
+  .srow select{width:100%;background:#0a0a18;border:1px solid var(--border);color:var(--text);
+    border-radius:8px;padding:8px 10px;}
+  .testbox{background:#0c1018;border:1px solid var(--border);border-radius:8px;padding:14px;
+    margin-bottom:16px;text-align:center;}
+  .testbox .bigv{font-size:2rem;font-weight:900;font-family:monospace;color:var(--accent);}
+  .testbox .hint{font-size:.72rem;color:var(--muted);margin-top:4px;}
+  .testbar{height:10px;background:#1a1a3a;border-radius:5px;overflow:hidden;margin-top:8px;}
+  .testbar div{height:100%;background:var(--accent);border-radius:5px;transition:width .05s;width:0%;}
+  .react-ind{display:inline-block;margin-top:8px;padding:3px 12px;border-radius:12px;font-size:.75rem;
+    font-weight:700;background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.4);
+    color:var(--accent);opacity:0;transition:opacity .15s;}
+  .react-ind.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="index.html">← 목록</a>
+  <div style="display:flex;gap:14px">
+    <div class="stat"><div class="label">점수</div><div class="value" id="scoreDisp">0</div></div>
+    <div class="stat"><div class="label">최고</div><div class="value" id="hiDisp">0</div></div>
+    <div class="stat"><div class="label">발견</div><div class="value" id="foundDisp">0/5</div></div>
+  </div>
+  <div style="display:flex;gap:6px">
+    <button class="ctrl" id="hcToggle" onclick="toggleHC()" title="고대비 모드">☀️</button>
+    <button class="ctrl" id="settBtn">⚙️</button>
+  </div>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+
+  <div class="overlay" id="startPanel">
+    <h2>💎 모래속 보물을 찾아!</h2>
+    <div class="sub">
+      초음파 센서로 탐험가를 움직여요!<br><br>
+      📡 <strong>손을 가까이</strong> → 탐험가가 걷습니다<br>
+      📡 <strong>손을 멀리</strong> → 멈추고 땅을 팝니다<br><br>
+      머리 위에 <strong>?</strong> 가 나타나면<br>
+      근처에 뭔가 묻혀 있어요!<br><br>
+      💎 보물 +2점 &nbsp; 🗑️ 쓰레기 -2점 &nbsp; ⚽ 공 -1점
+    </div>
+    <button class="btn" id="startBtn">탐험 시작!</button>
+  </div>
+
+  <div class="overlay hidden" id="overPanel">
+    <h2 id="overTitle">🏆 탐험 완료!</h2>
+    <div style="font-size:1.8rem;color:var(--accent);font-family:monospace;margin:4px 0" id="finalDisp"></div>
+    <div style="color:var(--muted);font-size:.85rem;margin-top:4px" id="hiLine"></div>
+    <div id="itemSummary" style="margin-top:12px;font-size:.9rem;line-height:2"></div>
+    <button class="btn" id="restartBtn" style="margin-top:10px">다시 탐험!</button>
+    <a href="index.html" style="color:var(--muted);font-size:.8rem">← 목록으로</a>
+  </div>
+</div>
+
+<div id="sensorBar">
+  <span class="label">거리</span>
+  <div id="sensorMeter"><div id="sensorFill"></div></div>
+  <span id="sensorVal">— cm</span>
+  <button class="ctrl" id="connectBtn">🔌 연결</button>
+</div>
+
+<div id="settPanel">
+  <h3>⚙️ 센서 · 입력 설정</h3>
+  <div class="testbox">
+    <div class="bigv" id="tBigV">— cm</div>
+    <div class="hint">초음파 센서 거리 (0~400cm)</div>
+    <div class="testbar"><div id="tBar"></div></div>
+    <div class="react-ind" id="reactInd">반응 중</div>
+  </div>
+  <div class="srow">
+    <label>기준 거리: <strong id="threshLabel">20</strong> cm</label>
+    <input type="range" id="threshSlider" min="5" max="60" value="20">
+    <div style="font-size:.72rem;color:var(--muted);margin-top:4px">
+      이 거리보다 가까우면 걷기, 멀면 땅 파기
+    </div>
+  </div>
+  <div class="srow">
+    <label>탐험가 속도: <strong id="speedLabel">보통</strong></label>
+    <input type="range" id="speedSlider" min="1" max="3" value="2" step="1">
+  </div>
+  <div class="srow">
+    <label>입력 모드: <strong id="inputModeLabel">센서</strong></label>
+    <select id="inputModeSelect">
+      <option value="sensor">센서만 사용</option>
+      <option value="mouse">마우스 (왼쪽=걷기, 오른쪽=파기)</option>
+      <option value="keyboard">키보드 (스페이스=걷기)</option>
+    </select>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:6px">기본 조작은 센서입니다.</div>
+  </div>
+  <button class="btn" id="closeSett" style="width:100%">닫기</button>
+</div>
+
+<script src="js/serial.js"></script>
+<script src="js/keyboard-lock.js"></script>
+<script>
+// ── Canvas ────────────────────────────────────
+const canvas = document.getElementById('gc');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('gameWrap');
+function resize() { canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight; }
+resize(); window.addEventListener('resize', resize);
+
+// ── Serial ────────────────────────────────────
+const serial = new SerialManager();
+let rawDist = 30, distance = 30;
+const cfg = { threshold: 20, maxDist: 40, speedLevel: 2, inputMode: 'sensor' };
+
+// ── HC mode ───────────────────────────────────
+let hcMode = localStorage.getItem('hc_mode') === '1';
+function applyHC() {
+  document.body.classList.toggle('hc', hcMode);
+  document.getElementById('hcToggle').textContent = hcMode ? '🌙' : '☀️';
+}
+function toggleHC() {
+  hcMode = !hcMode;
+  localStorage.setItem('hc_mode', hcMode ? '1' : '0');
+  applyHC();
+}
+applyHC();
+
+// ── Hi-score ──────────────────────────────────
+const LB_KEY = 'treasurehunt_hi';
+function getHi() { return +localStorage.getItem(LB_KEY) || 0; }
+function setHi(s) { if (s > getHi()) localStorage.setItem(LB_KEY, s); }
+
+// ── Audio ─────────────────────────────────────
+let ac = null;
+function getAC() {
+  if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+  return ac;
+}
+function tone(freq, dur, type, vol, delay) {
+  try {
+    const a = getAC(), osc = a.createOscillator(), g = a.createGain();
+    osc.connect(g); g.connect(a.destination);
+    osc.frequency.value = freq; osc.type = type || 'sine';
+    const t0 = a.currentTime + (delay || 0);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol || 0.14, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.start(t0); osc.stop(t0 + dur + 0.01);
+  } catch(e) {}
+}
+function playWalk()  { tone(440, .04, 'sine', .06); }
+function playDig()   { tone(300, .06, 'square', .08); tone(250,.06,'square',.06,.07); }
+function playTreasure() {
+  tone(523,.08,'sine',.15); tone(659,.08,'sine',.15,.1);
+  tone(784,.08,'sine',.15,.2); tone(1047,.25,'sine',.15,.32);
+}
+function playTrash() {
+  tone(220,.12,'sawtooth',.15); tone(180,.2,'sawtooth',.12,.1);
+}
+function playBall()  { tone(330,.1,'sine',.1); tone(370,.08,'sine',.08,.1); }
+function playHint()  { tone(800,.04,'sine',.06); }
+function playEmpty() { tone(300,.15,'square',.06); }
+
+// ── Helpers ───────────────────────────────────
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+// ── Item templates ────────────────────────────
+const ITEM_TEMPLATES = [
+  { emoji: '💎', label: '다이아몬드', score: 2,  type: 'treasure' },
+  { emoji: '📜', label: '오래된 편지', score: 2, type: 'treasure' },
+  { emoji: '🗑️', label: '쓰레기봉투', score: -2, type: 'trash'   },
+  { emoji: '🥤', label: '콜라캔',     score: -2, type: 'trash'   },
+  { emoji: '⚽',  label: '공',         score: -1, type: 'ball'    },
+];
+
+// ── State ─────────────────────────────────────
+let state = 'menu';
+let score = 0;
+let items = [];
+let foundCount = 0;
+let particles = [];
+let floatTexts = [];
+let stepTimer = 0;
+let mouseRatio = 0.2; // 0=left(walking), 1=right(stopped)
+let keyWalk = false;
+
+// Character
+const C = {
+  x: 0, y: 0,
+  dir: 1,      // 1=right -1=left
+  phase: 0,    // walk animation
+  state: 'idle', // 'walking'|'idle'|'digging'|'celebrating'|'sad'
+  digTimer: 0,
+  actionTimer: 0,
+  nearItem: null,
+  hintPulse: 0,
+  prevWalking: false,
+};
+
+const CHAR_SPEED  = [1.8, 2.8, 4.0];
+const HIT_RADIUS  = 55;
+const DIG_FRAMES  = 90; // 1.5 seconds of digging animation
+
+function groundY() { return canvas.height * 0.68; }
+function charSpeed() { return CHAR_SPEED[cfg.speedLevel - 1]; }
+
+// ── Effective distance ─────────────────────────
+function effDist() {
+  if (cfg.inputMode === 'mouse')    return mouseRatio * cfg.maxDist;
+  if (cfg.inputMode === 'keyboard') return keyWalk ? 5 : 35;
+  return distance;
+}
+function isWalking() { return effDist() < cfg.threshold; }
+
+// ── Place items ───────────────────────────────
+function placeItems() {
+  items = [];
+  const W = canvas.width;
+  const margin = W * 0.1;
+  const zone = W - margin * 2;
+  const shuffled = [...ITEM_TEMPLATES].sort(() => Math.random() - 0.5);
+  for (let i = 0; i < shuffled.length; i++) {
+    const seg = zone / shuffled.length;
+    items.push({
+      ...shuffled[i],
+      x: margin + seg * i + seg * (0.15 + Math.random() * 0.7),
+      y: groundY() + 20,
+      found: false,
+      revealY: groundY() - 30,
+      revealT: 0,
+    });
+  }
+}
+
+// ── Init ──────────────────────────────────────
+function init() {
+  score = 0; foundCount = 0;
+  particles = []; floatTexts = [];
+  stepTimer = 0;
+  C.x = canvas.width * 0.15;
+  C.y = groundY();
+  C.dir = 1; C.phase = 0;
+  C.state = 'idle';
+  C.digTimer = 0; C.actionTimer = 0;
+  C.nearItem = null; C.hintPulse = 0;
+  C.prevWalking = false;
+  placeItems();
+  updateHUD();
+}
+
+// ── Burst ─────────────────────────────────────
+function burst(x, y, color, n) {
+  for (let i = 0; i < (n || 12); i++) {
+    const a = (i / (n || 12)) * Math.PI * 2 + Math.random() * 0.5;
+    const spd = 2 + Math.random() * 5;
+    particles.push({ x, y, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd - 1,
+      r: 2.5 + Math.random() * 4, color, alpha: 1, life: 30 + Math.random() * 20 });
+  }
+}
+function floatText(x, y, text, color) {
+  floatTexts.push({ x, y, vy: -1.8, text, color, alpha: 1, life: 70 });
+}
+
+// ── Sand particles ────────────────────────────
+function sandBurst(x, y) {
+  for (let i = 0; i < 10; i++) {
+    const a = Math.PI * (0.8 + Math.random() * 0.4) + (Math.random() - 0.5) * 0.8;
+    const spd = 1 + Math.random() * 3;
+    particles.push({ x, y, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd - 0.5,
+      r: 2 + Math.random() * 3, color: hcMode ? '#aaa' : '#c8a060', alpha: 1, life: 20 + Math.random() * 15 });
+  }
+}
+
+// ── Update ────────────────────────────────────
+function update() {
+  if (state !== 'playing') return;
+
+  const W = canvas.width;
+  const gY = groundY();
+
+  // Smooth sensor
+  distance = distance * 0.55 + rawDist * 0.45;
+  const walking = isWalking();
+
+  // Sensor UI color
+  document.getElementById('sensorFill').style.background = walking ? '#fb923c' : '#64748b';
+
+  // ── Character action logic ─────────────────
+  if (C.state === 'digging') {
+    C.digTimer--;
+    if ((C.digTimer % 8) === 0) sandBurst(C.x, gY);
+    if ((C.digTimer % 6) === 0) playDig();
+    if (C.digTimer <= 0) {
+      // Reveal result
+      if (C.nearItem && !C.nearItem.found) {
+        C.nearItem.found = true;
+        C.nearItem.revealT = 1;
+        foundCount++;
+        score += C.nearItem.score;
+        updateHUD();
+        const col = C.nearItem.type === 'treasure' ? '#fbbf24'
+                  : C.nearItem.type === 'trash'    ? '#94a3b8' : '#60a5fa';
+        burst(C.nearItem.x, gY - 10, col, 18);
+        const sign = C.nearItem.score > 0 ? '+' : '';
+        floatText(C.x, gY - 60, sign + C.nearItem.score + '점! ' + C.nearItem.label, col);
+        if (C.nearItem.type === 'treasure') { playTreasure(); C.state = 'celebrating'; }
+        else if (C.nearItem.type === 'trash') { playTrash(); C.state = 'sad'; }
+        else { playBall(); C.state = 'sad'; }
+        C.actionTimer = 70;
+        if (foundCount >= 5) setTimeout(endGame, 1200);
+      } else {
+        // Nothing here
+        floatText(C.x, gY - 50, '빈 곳이에요...', '#64748b');
+        playEmpty();
+        C.state = 'idle';
+      }
+    }
+    updateParticles();
+    return; // don't walk while digging
+  }
+
+  if (C.state === 'celebrating' || C.state === 'sad') {
+    C.actionTimer--;
+    if (C.actionTimer <= 0) C.state = 'idle';
+    updateParticles();
+    return;
+  }
+
+  // ── Walking / stopped ─────────────────────
+  if (walking) {
+    C.state = 'walking';
+    const spd = charSpeed();
+    // Near item → slow down for reaction time
+    const near = items.find(it => !it.found && Math.abs(it.x - C.x) < HIT_RADIUS);
+    C.nearItem = near || null;
+    const actualSpd = near ? spd * 0.55 : spd;
+
+    C.x += C.dir * actualSpd;
+    C.phase += 0.18;
+
+    // Step sound
+    stepTimer--;
+    if (stepTimer <= 0) { playWalk(); stepTimer = 18; }
+
+    // Bounce at edges
+    const margin = W * 0.06;
+    if (C.x > W - margin) { C.x = W - margin; C.dir = -1; }
+    if (C.x < margin)     { C.x = margin;      C.dir =  1; }
+
+    // Hint pulse when near item
+    if (near) {
+      C.hintPulse += 0.25;
+      if ((Math.floor(C.hintPulse) % 8) === 0) playHint();
+    } else {
+      C.hintPulse = 0;
+    }
+
+    C.prevWalking = true;
+  } else {
+    // Stopped
+    if (C.prevWalking) {
+      // Just stopped — initiate dig
+      C.state = 'digging';
+      C.digTimer = DIG_FRAMES;
+      C.phase = 0;
+    } else {
+      C.state = 'idle';
+    }
+    C.prevWalking = false;
+  }
+
+  updateParticles();
+
+  // Animate revealed items
+  items.forEach(it => {
+    if (it.found && it.revealT < 1) it.revealT = Math.min(1, it.revealT + 0.04);
+  });
+}
+
+function updateParticles() {
+  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.10; p.alpha -= 1/p.life; p.life--; });
+  particles = particles.filter(p => p.life > 0);
+  floatTexts.forEach(t => { t.y += t.vy; t.alpha -= 1/t.life; t.life--; });
+  floatTexts = floatTexts.filter(t => t.life > 0);
+}
+
+// ── Draw ──────────────────────────────────────
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  const gY = groundY();
+
+  // Sky gradient
+  const sky = ctx.createLinearGradient(0, 0, 0, gY);
+  sky.addColorStop(0, hcMode ? '#050505' : '#06090f');
+  sky.addColorStop(1, hcMode ? '#1a1a10' : '#141a10');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, gY);
+
+  // Stars (background)
+  if (!hcMode) {
+    ctx.fillStyle = 'rgba(255,255,220,0.5)';
+    for (let i = 0; i < 30; i++) {
+      const sx = ((i * 137 + 41) % W);
+      const sy = ((i * 97 + 13) % (gY * 0.7));
+      const r = 0.5 + (i % 3) * 0.4;
+      ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  // Moon / sun
+  ctx.save();
+  ctx.fillStyle = hcMode ? '#ddd' : '#fef3c7';
+  ctx.shadowColor = hcMode ? '#fff' : '#fef3c7'; ctx.shadowBlur = 20;
+  ctx.beginPath(); ctx.arc(W * 0.85, H * 0.08, 22, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // Ground (sandy)
+  const sandGrad = ctx.createLinearGradient(0, gY, 0, H);
+  sandGrad.addColorStop(0, hcMode ? '#2a1e08' : '#1e1408');
+  sandGrad.addColorStop(1, hcMode ? '#1a1208' : '#120e06');
+  ctx.fillStyle = sandGrad;
+  ctx.fillRect(0, gY, W, H - gY);
+
+  // Ground edge
+  ctx.strokeStyle = hcMode ? '#5a3a18' : '#3a2410';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, gY); ctx.lineTo(W, gY); ctx.stroke();
+
+  // Sand texture dots
+  ctx.fillStyle = hcMode ? 'rgba(180,140,60,.12)' : 'rgba(200,160,80,.08)';
+  for (let i = 0; i < 60; i++) {
+    const tx = (i * 113 + 7) % W;
+    const ty = gY + 5 + ((i * 79 + 3) % (H - gY - 10));
+    ctx.fillRect(tx, ty, 2, 1);
+  }
+
+  // Hidden item markers (X under sand — very subtle, only for items NOT found)
+  items.forEach(it => {
+    if (it.found) return;
+    // Buried marker: very faint dot under sand
+    ctx.fillStyle = 'rgba(255,255,100,0.04)';
+    ctx.beginPath(); ctx.arc(it.x, gY + 18, 8, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // Revealed items
+  items.forEach(it => {
+    if (!it.found) return;
+    const ry = lerp(gY + 20, gY - 38, it.revealT);
+    ctx.font = `${Math.round(lerp(10, 28, it.revealT))}px serif`;
+    ctx.textAlign = 'center';
+    ctx.globalAlpha = it.revealT;
+    ctx.fillText(it.emoji, it.x, ry);
+    ctx.globalAlpha = 1;
+    // Score badge under item
+    if (it.revealT > 0.8) {
+      const col = it.score > 0 ? '#fbbf24' : it.score < -1 ? '#ff4444' : '#60a5fa';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillStyle = col;
+      ctx.fillText((it.score > 0 ? '+' : '') + it.score, it.x, ry + 18);
+    }
+    ctx.textAlign = 'left';
+  });
+
+  // Character
+  if (state === 'playing') drawChar(gY);
+
+  // Particles
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.alpha);
+    ctx.shadowColor = p.color; ctx.shadowBlur = 4;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  });
+
+  // Float texts
+  floatTexts.forEach(t => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, t.alpha);
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillStyle = t.color;
+    ctx.textAlign = 'center';
+    ctx.shadowColor = t.color; ctx.shadowBlur = 8;
+    ctx.fillText(t.text, t.x, t.y);
+    ctx.restore();
+  });
+
+  // Progress dots (item count)
+  drawProgress(W, H);
+}
+
+function drawChar(gY) {
+  const x = C.x, y = gY;
+  const lp = Math.sin(C.phase);
+  const digging = C.state === 'digging';
+  const celebrating = C.state === 'celebrating';
+  const sad = C.state === 'sad';
+
+  const bodyClr = hcMode ? '#ffffff' : '#f0e0c8';
+  const limbClr = hcMode ? '#cccccc' : '#d0b898';
+  const glow    = celebrating ? '#fbbf24' : (C.nearItem && !digging) ? '#fb923c' : 'transparent';
+
+  ctx.save();
+  ctx.strokeStyle = bodyClr;
+  ctx.fillStyle   = bodyClr;
+  ctx.lineWidth   = 2.5;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+  ctx.shadowColor = glow;
+  ctx.shadowBlur  = celebrating ? 20 : (C.nearItem ? 12 : 0);
+
+  // Facing direction scale
+  ctx.save();
+  ctx.scale(C.dir, 1);
+  const cx = x * C.dir;
+
+  if (digging) {
+    // Bent-over digging pose
+    ctx.beginPath(); ctx.arc(cx, y - 38, 7, 0, Math.PI * 2); ctx.fill(); // head
+    // Bent body
+    ctx.beginPath(); ctx.moveTo(cx, y - 31); ctx.lineTo(cx + 6, y - 20); ctx.stroke();
+    // Arms digging
+    ctx.beginPath(); ctx.moveTo(cx + 3, y - 28); ctx.lineTo(cx + 18, y - 14); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + 3, y - 28); ctx.lineTo(cx - 10, y - 16); ctx.stroke();
+    // Legs
+    ctx.beginPath(); ctx.moveTo(cx + 6, y - 20); ctx.lineTo(cx + 2, y - 4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + 6, y - 20); ctx.lineTo(cx + 14, y - 5); ctx.stroke();
+    // Shovel
+    ctx.strokeStyle = '#8b6040';
+    ctx.beginPath(); ctx.moveTo(cx + 18, y - 14); ctx.lineTo(cx + 26, y - 2); ctx.stroke();
+    ctx.fillStyle = '#8b6040';
+    ctx.beginPath(); ctx.ellipse(cx + 26, y - 1, 6, 4, 0.4, 0, Math.PI * 2); ctx.fill();
+  } else if (celebrating) {
+    // Arms up
+    ctx.beginPath(); ctx.arc(cx, y - 38, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx, y - 31); ctx.lineTo(cx, y - 18); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, y - 26); ctx.lineTo(cx - 14, y - 36); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, y - 26); ctx.lineTo(cx + 14, y - 36); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, y - 18); ctx.lineTo(cx - 5, y - 4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, y - 18); ctx.lineTo(cx + 5, y - 4); ctx.stroke();
+  } else if (sad) {
+    // Slumped pose
+    ctx.beginPath(); ctx.arc(cx, y - 35, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx, y - 28); ctx.lineTo(cx - 2, y - 16); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 1, y - 24); ctx.lineTo(cx - 12, y - 18); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 1, y - 24); ctx.lineTo(cx + 10, y - 22); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 2, y - 16); ctx.lineTo(cx - 6, y - 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 2, y - 16); ctx.lineTo(cx + 4, y - 2); ctx.stroke();
+  } else {
+    // Walking / idle
+    ctx.beginPath(); ctx.arc(cx, y - 40, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx, y - 33); ctx.lineTo(cx, y - 20); ctx.stroke();
+    // Arms swing
+    ctx.strokeStyle = limbClr;
+    ctx.beginPath(); ctx.moveTo(cx, y - 28); ctx.lineTo(cx - 10, y - 20 + lp * 5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, y - 28); ctx.lineTo(cx + 10, y - 20 - lp * 5); ctx.stroke();
+    ctx.strokeStyle = bodyClr;
+    // Legs
+    ctx.beginPath(); ctx.moveTo(cx, y - 20); ctx.lineTo(cx - 6 + lp * 5, y - 4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, y - 20); ctx.lineTo(cx + 6 - lp * 5, y - 4); ctx.stroke();
+  }
+  ctx.restore();
+
+  // Hat (always)
+  ctx.fillStyle = hcMode ? '#cc9900' : '#f59e0b';
+  ctx.shadowColor = '#f59e0b'; ctx.shadowBlur = 8;
+  ctx.fillRect(x - 9, y - 50, 18, 5);
+  ctx.beginPath(); ctx.moveTo(x - 6, y - 50); ctx.lineTo(x - 4, y - 58); ctx.lineTo(x + 4, y - 58); ctx.lineTo(x + 6, y - 50); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // ? bubble (near item hint)
+  if (C.nearItem && C.state === 'walking') {
+    const pulse = Math.sin(C.hintPulse * 1.5) * 0.3 + 0.7;
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillStyle = '#fb923c';
+    ctx.shadowColor = '#fb923c'; ctx.shadowBlur = 12;
+    ctx.textAlign = 'center';
+    ctx.fillText('?', x, y - 62);
+    ctx.restore();
+  }
+
+  // Footstep dust when walking
+  if (C.state === 'walking' && (Math.floor(C.phase * 2) % 6 === 0)) {
+    ctx.fillStyle = hcMode ? 'rgba(180,140,60,.2)' : 'rgba(200,160,80,.15)';
+    ctx.beginPath(); ctx.arc(x - C.dir * 8, y - 2, 4, 0, Math.PI * 2); ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function drawProgress(W, H) {
+  if (state !== 'playing') return;
+  const gY = groundY();
+  const total = 5;
+  const dotR = 8, gap = 22;
+  const startX = W / 2 - ((total - 1) * gap) / 2;
+
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillStyle = hcMode ? '#ccc' : '#8a7050';
+  ctx.textAlign = 'center';
+  ctx.fillText('발견한 아이템', W / 2, gY + 40 + dotR);
+
+  for (let i = 0; i < total; i++) {
+    const bx = startX + i * gap;
+    const by = gY + 55 + dotR;
+    const found = i < foundCount;
+    const it = items[i] || null;
+
+    if (found && it) {
+      ctx.font = '14px serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(it.emoji, bx, by + 5);
+    } else {
+      ctx.fillStyle = hcMode ? '#555' : '#2a1e10';
+      ctx.strokeStyle = hcMode ? '#aaa' : '#5a3a18';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(bx, by, dotR, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      ctx.font = 'bold 10px monospace';
+      ctx.fillStyle = hcMode ? '#888' : '#4a3020';
+      ctx.textAlign = 'center';
+      ctx.fillText('?', bx, by + 4);
+    }
+  }
+  ctx.textAlign = 'left';
+}
+
+// ── Main loop ─────────────────────────────────
+function loop() { requestAnimationFrame(loop); update(); draw(); }
+loop();
+
+// ── HUD ───────────────────────────────────────
+function updateHUD() {
+  document.getElementById('scoreDisp').textContent = score;
+  document.getElementById('hiDisp').textContent = Math.max(score, getHi()).toLocaleString();
+  document.getElementById('foundDisp').textContent = foundCount + '/5';
+}
+
+// ── Game flow ─────────────────────────────────
+function startGame() {
+  init();
+  state = 'playing';
+  document.getElementById('startPanel').classList.add('hidden');
+  document.getElementById('overPanel').classList.add('hidden');
+}
+function endGame() {
+  state = 'gameover';
+  setHi(score);
+
+  const title = score >= 3 ? '🏆 탐험 완료!' : score >= 0 ? '😊 탐험 완료!' : '😢 탐험 완료...';
+  document.getElementById('overTitle').textContent = title;
+  document.getElementById('finalDisp').textContent = '총 ' + score + '점!';
+  document.getElementById('hiLine').textContent = '최고 기록: ' + getHi() + '점';
+
+  const summary = items.map(it => {
+    const sign = it.score > 0 ? '+' : '';
+    return `${it.emoji} ${it.label} (${sign}${it.score}점)`;
+  }).join('<br>');
+  document.getElementById('itemSummary').innerHTML = summary;
+
+  document.getElementById('overPanel').classList.remove('hidden');
+  document.getElementById('hiDisp').textContent = getHi().toLocaleString();
+}
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+
+// ── Teacher inputs ────────────────────────────
+canvas.addEventListener('mousemove', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  const r = canvas.getBoundingClientRect();
+  mouseRatio = (e.clientX - r.left) / r.width;
+});
+canvas.addEventListener('touchmove', e => {
+  if (cfg.inputMode !== 'mouse') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  mouseRatio = (e.touches[0].clientX - r.left) / r.width;
+}, { passive: false });
+
+window.addEventListener('keydown', e => {
+  if (cfg.inputMode !== 'keyboard') return;
+  if (!window.TeacherControlLock?.isUnlocked()) return;
+  if (e.key === ' ') { keyWalk = true; e.preventDefault(); }
+});
+window.addEventListener('keyup', e => {
+  if (e.key === ' ') keyWalk = false;
+});
+
+// ── Serial ────────────────────────────────────
+serial.onData(v => {
+  rawDist = v;
+  const pct = Math.min((v / cfg.maxDist) * 100, 100);
+  document.getElementById('sensorFill').style.width = pct + '%';
+  document.getElementById('sensorVal').textContent  = v.toFixed(1) + ' cm';
+  document.getElementById('tBigV').textContent      = v.toFixed(1) + ' cm';
+  document.getElementById('tBar').style.width       = pct + '%';
+  const ind = document.getElementById('reactInd');
+  ind.textContent = v < cfg.threshold ? '🚶 걷는 중' : '⛏️ 파는 중';
+  ind.classList.add('show');
+  clearTimeout(ind._t);
+  ind._t = setTimeout(() => ind.classList.remove('show'), 900);
+});
+serial.onConnect(() => {
+  document.getElementById('connectBtn').textContent = '🔴 연결됨';
+  document.getElementById('connectBtn').classList.add('connected');
+});
+serial.onDisconnect(() => {
+  document.getElementById('connectBtn').textContent = '🔌 연결';
+  document.getElementById('connectBtn').classList.remove('connected');
+  rawDist = 30; distance = 30;
+});
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (serial.active) await serial.disconnect();
+  else try { await serial.connect(); } catch(e) { alert(e.message); }
+});
+
+// ── Settings ──────────────────────────────────
+const MODE_LABELS = { sensor: '센서', mouse: '마우스', keyboard: '키보드' };
+function syncModeUI() {
+  document.getElementById('inputModeSelect').value = cfg.inputMode;
+  document.getElementById('inputModeLabel').textContent = MODE_LABELS[cfg.inputMode] || '센서';
+}
+document.getElementById('settBtn').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.toggle('open'));
+document.getElementById('closeSett').addEventListener('click', () =>
+  document.getElementById('settPanel').classList.remove('open'));
+document.getElementById('threshSlider').addEventListener('input', e => {
+  cfg.threshold = +e.target.value;
+  document.getElementById('threshLabel').textContent = cfg.threshold;
+});
+document.getElementById('speedSlider').addEventListener('input', e => {
+  cfg.speedLevel = +e.target.value;
+  document.getElementById('speedLabel').textContent = ['느림','보통','빠름'][cfg.speedLevel - 1];
+});
+document.getElementById('inputModeSelect').addEventListener('change', e => {
+  cfg.inputMode = MODE_LABELS[e.target.value] ? e.target.value : 'sensor';
+  syncModeUI();
+});
+
+document.getElementById('hiDisp').textContent = getHi().toLocaleString();
+syncModeUI();
+</script>
+</body>
+</html>

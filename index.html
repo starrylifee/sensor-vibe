@@ -489,6 +489,76 @@
     </div>
   </a>
 
+  <a href="fence-dodge.html" class="card" style="--c:#a78bfa">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">🐑</span>
+      <div class="card-title">울타리를 조심해!</div>
+      <div class="card-desc">초음파 센서로 양의 높이를 조절하세요! 손을 가까이 대면 위로, 멀리 대면 아래로. 위아래 울타리 틈을 통과하세요. 닿으면 처음부터!</div>
+      <span class="sensor-badge">초음파 센서 (거리)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-fence">—</span></div>
+      <button class="play-btn" style="background:#a78bfa;box-shadow:0 0 12px #a78bfa;color:#000">플레이 →</button>
+    </div>
+  </a>
+
+  <a href="treasure-hunt.html" class="card" style="--c:#fb923c">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">💎</span>
+      <div class="card-title">모래속 보물을 찾아!</div>
+      <div class="card-desc">초음파 센서로 탐험가를 움직여요! 손을 가까이 대면 걷고, 멀리 대면 땅을 팝니다. 머리 위에 ?가 나타나면 보물이 근처에 있어요!</div>
+      <span class="sensor-badge">초음파 센서 (거리)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-treasure">—</span></div>
+      <button class="play-btn" style="background:#fb923c;box-shadow:0 0 12px #fb923c;color:#000">플레이 →</button>
+    </div>
+  </a>
+
+  <a href="sheep-hole.html" class="card" style="--c:#4ade80">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">🐑</span>
+      <div class="card-title">구멍을 통과해라!</div>
+      <div class="card-desc">초음파 센서로 양 모양을 바꿔요! 손을 가까이 대면 세로로 길쭉, 멀리 대면 가로로 납작. 구멍 모양에 맞춰 통과하세요!</div>
+      <span class="sensor-badge">초음파 센서 (거리)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-sheephole">—</span></div>
+      <button class="play-btn" style="background:#4ade80;box-shadow:0 0 12px #4ade80;color:#000">플레이 →</button>
+    </div>
+  </a>
+
+  <a href="crosswalk-game.html" class="card" style="--c:#fbbf24">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">🚶</span>
+      <div class="card-title">차피하기 횡단보도</div>
+      <div class="card-desc">초음파 센서로 신호등 조작! 손을 멀리 대면 파란 신호로 시각장애인이 건너고, 가까이 대면 빨간 신호로 차가 지나갑니다.</div>
+      <span class="sensor-badge">초음파 센서 (거리)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-crosswalk">—</span></div>
+      <button class="play-btn" style="background:#fbbf24;box-shadow:0 0 12px #fbbf24">플레이 →</button>
+    </div>
+  </a>
+
+  <a href="stair-climb.html" class="card" style="--c:#06b6d4">
+    <div class="card-top"></div>
+    <div class="card-body">
+      <span class="card-icon">🪜</span>
+      <div class="card-title">초음파 계단</div>
+      <div class="card-desc">초음파 센서로 계단 위치를 맞추세요! 손을 가까이 대면 왼쪽, 멀리 대면 오른쪽. 내려오는 계단 블록에 맞춰 이동하고 틀리면 아뿔싸! 목숨 3개를 모두 잃으면 게임 오버.</div>
+      <span class="sensor-badge">초음파 센서 (거리)</span>
+    </div>
+    <div class="card-footer">
+      <div class="hi">최고 <span id="hi-stairclimb">—</span></div>
+      <button class="play-btn" style="background:#06b6d4;box-shadow:0 0 12px #06b6d4;color:#000">플레이 →</button>
+    </div>
+  </a>
+
     <!-- 예시: 아래 카드 복사해서 학생 작품 추가
     <a href="학생파일.html" class="card" style="--c:#a855f7">
       <div class="card-top"></div>
@@ -603,6 +673,16 @@ document.getElementById('hi-banana').textContent =
   fmt(localStorage.getItem('bananarunner_hi'));
 document.getElementById('hi-alien').textContent =
   fmt(localStorage.getItem('alienshoot_hi'));
+document.getElementById('hi-crosswalk').textContent =
+  fmt(localStorage.getItem('crosswalk_hi'));
+document.getElementById('hi-sheephole').textContent =
+  fmt(localStorage.getItem('sheephole_hi'));
+document.getElementById('hi-treasure').textContent =
+  fmt(localStorage.getItem('treasurehunt_hi'));
+document.getElementById('hi-fence').textContent =
+  fmt(localStorage.getItem('fencedodge_hi'));
+document.getElementById('hi-stairclimb').textContent =
+  fmt(localStorage.getItem('stairclimb_hi'));
 
 // 점프맵: 난이도별 최고 기록 중 가장 빠른 시간
 (function() {
