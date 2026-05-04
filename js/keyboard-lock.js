@@ -285,13 +285,7 @@
       <button type="button" class="teacher-lock-close-button" data-teacher-lock-close>닫기</button>
     `;
 
-    button.addEventListener('click', () => {
-      panel.classList.toggle('open');
-      if (panel.classList.contains('open')) {
-        const pwInput = panel.querySelector('[data-keyboard-lock-password]');
-        if (pwInput) setTimeout(() => pwInput.focus(), 50);
-      }
-    });
+    button.addEventListener('click', () => panel.classList.toggle('open'));
     panel.querySelector('[data-teacher-lock-close]').addEventListener('click', () => {
       panel.classList.remove('open');
     });
@@ -311,6 +305,13 @@
     if (closeButton) panel.insertBefore(card, closeButton);
     else panel.appendChild(card);
     syncUi(false);
+
+    new MutationObserver(() => {
+      if (panel.classList.contains('open')) {
+        const pwInput = panel.querySelector('[data-keyboard-lock-password]');
+        if (pwInput) pwInput.focus();
+      }
+    }).observe(panel, { attributes: true, attributeFilter: ['class'] });
   }
 
   function syncUi(forceMessage) {
