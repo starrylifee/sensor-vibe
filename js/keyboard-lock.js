@@ -285,7 +285,13 @@
       <button type="button" class="teacher-lock-close-button" data-teacher-lock-close>닫기</button>
     `;
 
-    button.addEventListener('click', () => panel.classList.toggle('open'));
+    button.addEventListener('click', () => {
+      panel.classList.toggle('open');
+      if (panel.classList.contains('open')) {
+        const pwInput = panel.querySelector('[data-keyboard-lock-password]');
+        if (pwInput) setTimeout(() => pwInput.focus(), 50);
+      }
+    });
     panel.querySelector('[data-teacher-lock-close]').addEventListener('click', () => {
       panel.classList.remove('open');
     });
