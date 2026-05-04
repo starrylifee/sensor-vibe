@@ -1,5 +1,5 @@
 (function () {
-  const PASSWORD = 'shindap';
+  const PASSWORD = '1234';
   const STORAGE_KEY = 'sensorVibeKeyboardUnlocked';
   const CONTROL_KEYS = new Set([
     ' ', 'Space', 'Enter',
